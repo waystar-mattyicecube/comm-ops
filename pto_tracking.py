@@ -78,7 +78,7 @@ if 'conn' not in st.session_state:
         st.session_state['snowflake_connected'] = True
 
         connection_message = st.empty()
-        connection_message.success("Connected to Snowflake successfully.")
+        connection_message.success("Connected to Snowflake.")
     except Exception as e:
         st.error(f"Error connecting to Snowflake: {e}")
 
@@ -264,7 +264,7 @@ if selected_name != 'Select Sales Rep':
                 else:
                     st.session_state.conn.commit()
                     success_message = st.empty()
-                    success_message.success("Changes saved successfully!")
+                    success_message.success("Changes saved!")
                     time.sleep(4)  # Keep success message for 4 seconds
                     success_message.empty()
     else:
