@@ -81,16 +81,18 @@ if 'conn' not in st.session_state:
     except Exception as e:
         st.error(f"Error connecting to Snowflake: {e}")
 
-# Define a function to fetch distinct rep names and cache the results
+# Define a function to fetch distinct rep names and cache the results (without passing the connection)
 @st.cache_data
-def fetch_rep_names(conn):
-    query = "SELECT DISTINCT NAME FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO"
-    cur = conn.cursor()
+def fetch_rep_names(query):
+    cur = st.session_state.conn.cursor()
     cur.execute(query)
     return [row[0] for row in cur.fetchall()]
 
+# Define the query for fetching names
+query = "SELECT DISTINCT NAME FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO"
+
 # Fetch rep names and insert default option
-names = fetch_rep_names(st.session_state.conn)
+names = fetch_rep_names(query)
 names.insert(0, 'Select Sales Rep')
 
 # Ensure selected_name persists in session state
@@ -262,3 +264,6 @@ if selected_name != 'Select Sales Rep':
                     st.session_state.conn.commit()
                     success_message = st.empty()
                     success_message.success("Changes saved successfully!")
+    else:
+        with st.sidebar:
+            st.write("No PTO records found for the selected sales rep.")
