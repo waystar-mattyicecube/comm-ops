@@ -261,9 +261,8 @@ if selected_name != 'Select Sales Rep':
                     time.sleep(5)  # Error message persists for 5 seconds
                     error_message.empty()
 
-                    # Revert the changes to original data
-                    edited_pto_df = original_pto_df
-                    st.experimental_rerun()  # Force a rerun to reset the data
+                    # Revert the changes to original data by updating session state
+                    st.session_state['edited_pto_df'] = original_pto_df
                 else:
                     st.session_state.conn.commit()
                     success_message = st.empty()
