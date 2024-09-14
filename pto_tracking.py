@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from streamlit_date_picker import date_range_picker, PickerType
 import snowflake.connector
 import pandas as pd
-import time
 
 # Logo URL
 logo_url = "https://companieslogo.com/img/orig/WAY-3301bb15.png?t=1717743657"
@@ -265,8 +264,6 @@ if selected_name != 'Select Sales Rep':
                     st.session_state.conn.commit()
                     success_message = st.empty()
                     success_message.success("Changes saved successfully!")
-                    time.sleep(4)  # Keep success message for 4 seconds
-                    success_message.empty()
     else:
         with st.sidebar:
             st.write("No PTO records found for the selected sales rep.")
