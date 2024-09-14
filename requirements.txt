@@ -1,3 +1,2 @@
 streamlit_date_picker
-snowflake
 snowflake.connector
