@@ -140,8 +140,6 @@ if selected_name != 'Select Sales Rep':
                 existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
                 error_message = st.empty()
                 error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
-                time.sleep(5)  # Error message persists for 5 seconds
-                error_message.empty()
             else:
                 hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
                 hours_worked = 0 if day_type == 'Full Day' else 0.5
@@ -253,16 +251,16 @@ if selected_name != 'Select Sales Rep':
                     else:
                         if row['Date'] in existing_dates_set:
                             error_dates.append(row['Date'].strftime('%b %d, %Y'))
+                        else:
+                            insert_query = f"""
+                            INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "Hours Worked Text", "Hours Worked", "DATE")
+                            VALUES (%s, %s, %s, %s)
+                            """
+                            cur.execute(insert_query, (selected_name, row['PTO'], hours_worked, row['Date']))
 
-                # Check for submission errors and revert changes if necessary
                 if error_dates:
                     error_message = st.empty()
                     error_message.error(f"Cannot add PTO for the following dates as they already exist: {', '.join(error_dates)}")
-                    time.sleep(5)  # Error message persists for 5 seconds
-                    error_message.empty()
-
-                    # Revert the changes to original data by updating session state
-                    st.session_state['edited_pto_df'] = original_pto_df
                 else:
                     st.session_state.conn.commit()
                     success_message = st.empty()
