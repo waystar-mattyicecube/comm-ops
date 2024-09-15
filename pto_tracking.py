@@ -80,11 +80,14 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     existing_dates = [row[0] for row in cur.fetchall()]
 
     # Check for duplicates within the edited PTO DataFrame itself
-    duplicate_dates_in_df = edited_pto_df['Date'].duplicated(keep=False)
+    duplicate_dates_in_df = edited_pto_df['Date'][edited_pto_df['Date'].duplicated(keep=False)]
 
-    if duplicate_dates_in_df.any():
+    if not duplicate_dates_in_df.empty:
+        # Format the conflicting dates for display
+        duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates_in_df])
+
         with st.sidebar:
-            st.error("There are duplicate dates in the edited PTO entries. Please remove duplicates.")
+            st.error(f"There are duplicate dates in the edited PTO entries: {duplicate_dates_str}. Please remove duplicates.")
         return  # Exit the function if duplicates exist within the DataFrame itself
 
     # Detect new dates added by the user
