@@ -62,14 +62,35 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Callback function to save changes
+# Callback function to save changes with duplicate check
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     if conn is None:
         st.error("Database connection is not available.")
         return
-    
+
     cur = conn.cursor()
     error_dates = []
+    
+    # Get existing PTO dates from Snowflake for the selected user
+    check_query = """
+    SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+    WHERE NAME = %s
+    """
+    cur.execute(check_query, (selected_name,))
+    existing_dates = [row[0].date() for row in cur.fetchall()]
+
+    # Find any new dates in the edited PTO data that already exist in Snowflake
+    new_dates = edited_pto_df['Date'].tolist()
+    duplicate_dates = [date for date in new_dates if date in existing_dates]
+
+    if duplicate_dates:
+        duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
+
+        # Display an error message in the sidebar
+        with st.sidebar:
+            error_message = st.empty()
+            error_message.error(f"Cannot save. PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+        return  # Exit the function without saving
 
     # Detect deleted rows
     deleted_rows = original_pto_df.loc[~original_pto_df['Date'].isin(edited_pto_df['Date'])]
