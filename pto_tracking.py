@@ -63,8 +63,10 @@ st.markdown(
 )
 
 # Callback function to save changes
-def save_changes(edited_pto_df, original_pto_df, selected_name, conn, cur):
+def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     error_dates = []
+    
+    cur = conn.cursor()  # Open a new cursor inside the save_changes function
 
     # Detect deleted rows
     deleted_rows = original_pto_df.loc[~original_pto_df['Date'].isin(edited_pto_df['Date'])]
@@ -95,6 +97,7 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn, cur):
         cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
     
     conn.commit()
+    cur.close()  # Close the cursor after the database operations are done
     st.success("Changes saved successfully!")
 
 # Initialize connection state in session state
@@ -251,7 +254,7 @@ if selected_name != 'Select Sales Rep':
                 "Save Changes", 
                 key='save_changes_button', 
                 on_click=save_changes, 
-                args=(edited_pto_df, original_pto_df, selected_name, conn, cur)
+                args=(edited_pto_df, original_pto_df, selected_name, conn)
             )
 
 cur.close()
