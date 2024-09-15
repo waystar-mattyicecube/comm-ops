@@ -281,7 +281,8 @@ with col1:
                 filter_option = st.radio("", ["All", "Recent"], index=1, key="filter_option")
 
                 if filter_option == "Recent":
-                    pto_df = pto_df[pto_df['Date'].apply(lambda x: x.year in [current_year, next_year])]
+                    three_months_ago = today - timedelta(days=90)
+                    pto_df = pto_df[pto_df['Date'].apply(lambda x: (three_months_ago <= x <= today and x.year == current_year) or (x.year == next_year))]
 
                 pto_df = pto_df.reset_index(drop=True)
                 pto_df = pto_df.sort_values(by='Date', ascending=False)
