@@ -80,10 +80,10 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     existing_dates = [row[0] for row in cur.fetchall()]
 
     # Check for duplicates within the edited PTO DataFrame itself
-    duplicate_dates_in_df = edited_pto_df['Date'][edited_pto_df['Date'].duplicated(keep=False)]
+    duplicate_dates_in_df = edited_pto_df['Date'][edited_pto_df['Date'].duplicated(keep=False)].drop_duplicates()
 
     if not duplicate_dates_in_df.empty:
-        # Format the conflicting dates for display
+        # Format the distinct duplicate dates for display
         duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates_in_df])
 
         with st.sidebar:
