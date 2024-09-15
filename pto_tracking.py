@@ -62,15 +62,9 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Initialize session states
+# Initialize connection state in session state
 if 'snowflake_connected' not in st.session_state:
     st.session_state['snowflake_connected'] = False
-if 'selected_name' not in st.session_state:
-    st.session_state['selected_name'] = 'Select Sales Rep'
-if 'original_pto_df' not in st.session_state:
-    st.session_state['original_pto_df'] = pd.DataFrame()
-if 'edited_pto_df' not in st.session_state:
-    st.session_state['edited_pto_df'] = pd.DataFrame()
 
 # Snowflake connection details
 snowflake_user = 'mattyicecube'
@@ -123,10 +117,10 @@ col1, spacer, col2 = st.columns([8, 0.1, 1])
 
 # In the first column, display the dropdown and inputs for PTO submission
 with col1:
-    st.session_state['selected_name'] = st.selectbox('Select Sales Rep', names, index=names.index(st.session_state['selected_name']))
+    selected_name = st.selectbox('', names)
 
-    if st.session_state['selected_name'] != 'Select Sales Rep':
-        day_type = st.radio('Select Day Type', ['Full Day', 'Half Day'])
+    if selected_name != 'Select Sales Rep':
+        day_type = st.radio('', ['Full Day', 'Half Day'])
         default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
         refresh_value = timedelta(days=1)
 
@@ -151,13 +145,13 @@ with col1:
                 SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
                 WHERE NAME = %s AND "DATE" BETWEEN %s AND %s
                 """
-                cur.execute(check_query, (st.session_state['selected_name'], start_date, end_date))
+                cur.execute(check_query, (selected_name, start_date, end_date))
                 existing_dates = [row[0] for row in cur.fetchall()]
 
                 if existing_dates:
                     existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
                     error_message = st.empty()
-                    error_message.error(f"PTO already exists for {st.session_state['selected_name']} on: {existing_dates_str}.")
+                    error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
                     time.sleep(10)
                     error_message.empty()
                 else:
@@ -170,46 +164,129 @@ with col1:
                             INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "Hours Worked Text", "Hours Worked", "DATE")
                             VALUES (%s, %s, %s, %s)
                             """
-                            cur.execute(insert_query, (st.session_state['selected_name'], hours_worked_text, hours_worked, current_date))
+                            cur.execute(insert_query, (selected_name, hours_worked_text, hours_worked, current_date))
                         current_date += timedelta(days=1)
                     conn.commit()
 
                     success_message = st.empty()
-                    success_message.success(f"Time off submitted for {st.session_state['selected_name']} from {formatted_start_date} to {formatted_end_date} (excluding weekends).")
+                    success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date} (excluding weekends).")
                     time.sleep(3)
                     success_message.empty()
 
 # Move PTO data display to the sidebar and allow editing
-if st.session_state['selected_name'] != 'Select Sales Rep':
-    # Fetch PTO data only if it's empty in the session state
-    if st.session_state['original_pto_df'].empty:
-        pto_query = f"""
-        SELECT "DATE", "Hours Worked Text" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-        WHERE NAME = %s
-        ORDER BY "DATE" DESC
-        """
-        cur.execute(pto_query, (st.session_state['selected_name'],))
-        pto_data = cur.fetchall()
-        if pto_data:
-            st.session_state['original_pto_df'] = pd.DataFrame(pto_data, columns=["Date", "PTO"])
-            st.session_state['original_pto_df']['Date'] = pd.to_datetime(st.session_state['original_pto_df']['Date']).dt.date
+if selected_name != 'Select Sales Rep':
+    existing_query = f"""
+    SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+    WHERE NAME = %s
+    """
+    cur.execute(existing_query, (selected_name,))
+    existing_dates = [row[0] for row in cur.fetchall()]
+    existing_dates_set = set(existing_dates)
 
-    # Separate edited dataframe from the original
-    st.session_state['edited_pto_df'] = st.data_editor(
-        st.session_state['original_pto_df'].copy(),  # Copy to avoid modifying the original df directly
-        height=300
-    )
+    pto_query = f"""
+    SELECT "DATE", "Hours Worked Text" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+    WHERE NAME = %s
+    ORDER BY "DATE" DESC
+    """
+    cur.execute(pto_query, (selected_name,))
+    pto_data = cur.fetchall()
 
-    # Button to save changes
-    if st.button("Save Changes"):
-        # Update session state with new edited dataframe
-        st.session_state['original_pto_df'] = st.session_state['edited_pto_df']
+    if pto_data:
+        pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
+        pto_df['Date'] = pd.to_datetime(pto_df['Date']).dt.date
 
-        # Detect deleted rows and perform batch delete
-        deleted_rows = st.session_state['original_pto_df'][~st.session_state['original_pto_df']['Date'].isin(st.session_state['edited_pto_df']['Date'])]
+        # Store the original PTO data before editing
+        original_pto_df = pto_df.copy()
 
-        # Handle deletes and updates here based on your logic
-        conn.commit()
+        # Display the filter in the sidebar
+        with st.sidebar:
+            today = datetime.now().date()
+            current_year = today.year
+            next_year = current_year + 1
+
+            # Remove the header but keep the filter functionality
+            filter_option = st.radio("", ["All", "Recent"], index=1)
+
+            if filter_option == "Recent":
+                pto_df = pto_df[pto_df['Date'].apply(lambda x: x.year in [current_year, next_year])]
+
+            # Reset index to remove the row index
+            pto_df = pto_df.reset_index(drop=True)
+            pto_df = pto_df.sort_values(by='Date', ascending=False)
+
+            # Display the DataFrame in the sidebar with editing capabilities and hide index
+            st.write("Edit/Delete Entries:")
+            edited_pto_df = st.data_editor(
+                pto_df,
+                num_rows="dynamic",
+                column_config={
+                    "PTO": st.column_config.SelectboxColumn(
+                        label="PTO", options=["Full Day", "Half Day"], required=True, width=100
+                    ),
+                    "Date": st.column_config.Column(
+                        label="Date", required=True, width=150
+                    )
+                },
+                hide_index=True  # Hide the row indexes
+            )
+
+            # Button to save changes
+            if st.button("Save Changes"):
+                error_dates = []
+
+                # Detect deleted rows
+                deleted_rows = original_pto_df.loc[~original_pto_df['Date'].isin(edited_pto_df['Date'])]
+
+                # Perform batch delete for all dates that need to be removed with partition pruning
+                if not deleted_rows.empty:
+                    dates_to_delete = deleted_rows['Date'].tolist()
+
+                    # Create the DELETE query with batch deletion using IN clause and date pruning
+                    delete_query = f"""
+                    DELETE FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+                    WHERE NAME = %s AND "DATE" IN ({','.join(['%s' for _ in dates_to_delete])})
+                    """
+                    cur.execute(delete_query, [selected_name] + dates_to_delete)
+                    conn.commit()  # Commit once after the batch delete
+
+                # Handle updates and insertions
+                for index, row in edited_pto_df.iterrows():
+                    hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
+
+                    if row['Date'].weekday() in [5, 6]:
+                        continue
+
+                    if index in pto_df.index:
+                        update_query = f"""
+                        UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+                        SET "Hours Worked Text" = %s, "Hours Worked" = %s, "DATE" = %s
+                        WHERE NAME = %s AND "DATE" = %s
+                        """
+                        cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, pto_df.loc[index, 'Date']))
+                    else:
+                        if row['Date'] in existing_dates_set:
+                            error_dates.append(row['Date'].strftime('%b %d, %Y'))
+                        else:
+                            insert_query = f"""
+                            INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "Hours Worked Text", "Hours Worked", "DATE")
+                            VALUES (%s, %s, %s, %s)
+                            """
+                            cur.execute(insert_query, (selected_name, row['PTO'], hours_worked, row['Date']))
+
+                if error_dates:
+                    error_message = st.empty()
+                    error_message.error(f"Cannot add PTO for the following dates as they already exist: {', '.join(error_dates)}")
+                    time.sleep(7)
+                    error_message.empty()
+                else:
+                    conn.commit()
+                    success_message = st.empty()
+                    success_message.success("Changes saved successfully!")
+                    time.sleep(3)
+                    success_message.empty()
+    else:
+        with st.sidebar:
+            st.write("No PTO records found for the selected sales rep.")
 
 cur.close()
 conn.close()
