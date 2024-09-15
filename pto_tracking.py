@@ -87,10 +87,20 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
 
     # Handle updates and insertions
     for index, row in edited_pto_df.iterrows():
-        hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
+        # Ensure the Date column is properly converted to datetime
+        if pd.isnull(row['Date']):
+            st.warning(f"Skipping invalid date in row {index}")
+            continue
 
+        # Convert the date to datetime if necessary
+        if isinstance(row['Date'], str):
+            row['Date'] = pd.to_datetime(row['Date'])
+
+        # Check if the date is valid and avoid weekends
         if row['Date'].weekday() in [5, 6]:
             continue
+
+        hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
 
         update_query = f"""
         UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
