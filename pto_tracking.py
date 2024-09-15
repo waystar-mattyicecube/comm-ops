@@ -64,6 +64,8 @@ st.markdown(
 # Initialize session state variables
 if 'snowflake_connected' not in st.session_state:
     st.session_state['snowflake_connected'] = False
+if 'conn' not in st.session_state:
+    st.session_state['conn'] = None
 if 'selected_name' not in st.session_state:
     st.session_state['selected_name'] = 'Select Sales Rep'
 if 'date_range' not in st.session_state:
@@ -80,7 +82,7 @@ snowflake_schema = 'your_schema'
 # Establish connection to Snowflake if not already connected
 if not st.session_state['snowflake_connected']:
     try:
-        conn = snowflake.connector.connect(
+        st.session_state['conn'] = snowflake.connector.connect(
             user=snowflake_user,
             password=snowflake_password,
             account=snowflake_account,
@@ -92,15 +94,9 @@ if not st.session_state['snowflake_connected']:
         st.success("Connected to Snowflake successfully.")
     except Exception as e:
         st.error(f"Error connecting to Snowflake: {e}")
-else:
-    conn = snowflake.connector.connect(
-        user=snowflake_user,
-        password=snowflake_password,
-        account=snowflake_account,
-        warehouse=snowflake_warehouse,
-        database=snowflake_database,
-        schema=snowflake_schema
-    )
+
+# Reuse the Snowflake connection from session state
+conn = st.session_state['conn']
 
 # Fetch distinct values for the NAME column
 query = "SELECT DISTINCT NAME FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO"
