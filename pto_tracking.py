@@ -77,7 +77,9 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     WHERE NAME = %s
     """
     cur.execute(check_query, (selected_name,))
-    existing_dates = [row[0].date() for row in cur.fetchall()]
+    
+    # Directly convert fetched dates into a list
+    existing_dates = [row[0] for row in cur.fetchall()]
 
     # Find any new dates in the edited PTO data that already exist in Snowflake
     new_dates = edited_pto_df['Date'].tolist()
