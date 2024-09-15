@@ -69,16 +69,21 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         return
     
     cur = conn.cursor()
-
-    # Fetch existing PTO dates for the sales rep
-    query = f"""
-    SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-    WHERE NAME = %s
-    """
-    cur.execute(query, (selected_name,))
-    existing_dates = {row[0] for row in cur.fetchall()}
-
     error_dates = []
+
+    # Detect deleted rows
+    deleted_rows = original_pto_df.loc[~original_pto_df['Date'].isin(edited_pto_df['Date'])]
+
+    # Perform batch delete for all dates that need to be removed
+    if not deleted_rows.empty:
+        dates_to_delete = deleted_rows['Date'].tolist()
+
+        delete_query = f"""
+        DELETE FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+        WHERE NAME = %s AND "DATE" IN ({','.join(['%s' for _ in dates_to_delete])})
+        """
+        cur.execute(delete_query, [selected_name] + dates_to_delete)
+        conn.commit()
 
     # Handle updates and insertions
     for index, row in edited_pto_df.iterrows():
@@ -91,12 +96,7 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         if isinstance(row['Date'], str):
             row['Date'] = pd.to_datetime(row['Date'])
 
-        # Check if the date already exists
-        if row['Date'] in existing_dates:
-            error_dates.append(row['Date'].strftime('%b %d, %Y'))
-            continue
-
-        # Avoid weekends
+        # Check if the date is valid and avoid weekends
         if row['Date'].weekday() in [5, 6]:
             continue
 
@@ -108,21 +108,16 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         WHERE NAME = %s AND "DATE" = %s
         """
         cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
-
-    if error_dates:
-        error_message = st.empty()
-        error_message.error(f"Cannot add PTO for the following dates as they already exist: {', '.join(error_dates)}")
-        time.sleep(7)
-        error_message.empty()
-    else:
-        conn.commit()
-        with st.sidebar:
-            success_message = st.empty()
-            success_message.success("Changes saved successfully!")
-            time.sleep(5)
-            success_message.empty()
-
+    
+    conn.commit()
     cur.close()
+
+    # Display success message below the save changes button in the sidebar for 5 seconds
+    with st.sidebar:
+        success_message = st.empty()
+        success_message.success("Changes saved successfully!")
+        time.sleep(5)
+        success_message.empty()
 
 # Snowflake connection details
 snowflake_user = 'mattyicecube'
@@ -268,11 +263,10 @@ if st.session_state.get('snowflake_connected'):
                 )
 
                 # Save changes button with a callback to update the data
-                st.button(
+                if st.button(
                     "Save Changes", 
                     key='save_changes_button', 
                     on_click=save_changes, 
                     args=(edited_pto_df, original_pto_df, selected_name, conn)
-                )
-
-    cur.close()
+                ):
+                    pass
