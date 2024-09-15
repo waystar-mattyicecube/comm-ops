@@ -97,7 +97,6 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
 
         if duplicate_dates:
             # Format the conflicting dates to be more user-friendly
-            duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
             conflicting_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
 
             with st.sidebar:
@@ -193,7 +192,13 @@ if st.session_state.get('snowflake_connected'):
 
     # In the first column, display the dropdown and inputs for PTO submission (no header for selectbox)
     with col1:
-        selected_name = st.selectbox('', names, key='select_rep')
+        # Add a placeholder in the selectbox with the format_func
+        selected_name = st.selectbox(
+            '', 
+            names, 
+            key='select_rep', 
+            format_func=lambda x: 'Select Sales Rep' if x == '' else x
+        )
 
         if selected_name != '':
             day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type')
