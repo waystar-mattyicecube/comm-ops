@@ -125,11 +125,12 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     conn.commit()
     cur.close()
 
-    # Display error message for duplicate dates
-    if error_dates:
-        st.error(f"The following dates already exist for {selected_name}: {', '.join(error_dates)}")
-    else:
-        with st.sidebar:
+    # Display error message for duplicate dates at the bottom of the sidebar
+    with st.sidebar:
+        if error_dates:
+            error_message = st.empty()
+            error_message.error(f"The following dates already exist for {selected_name}: {', '.join(error_dates)}")
+        else:
             success_message = st.empty()
             success_message.success("Changes saved successfully!")
             time.sleep(5)
@@ -155,7 +156,6 @@ if 'conn' not in st.session_state:
             schema=snowflake_schema
         )
         st.session_state['snowflake_connected'] = True
-        st.success("Connected to Snowflake successfully.")
     except Exception as e:
         st.error(f"Error connecting to Snowflake: {e}")
 
