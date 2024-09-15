@@ -62,14 +62,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Callback function to save changes with duplicate check
+# Callback function to save changes with duplicate check only for new entries
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     if conn is None:
         st.error("Database connection is not available.")
         return
 
     cur = conn.cursor()
-    error_dates = []
     
     # Get existing PTO dates from Snowflake for the selected user
     check_query = """
@@ -77,22 +76,24 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     WHERE NAME = %s
     """
     cur.execute(check_query, (selected_name,))
-    
-    # Directly convert fetched dates into a list
     existing_dates = [row[0] for row in cur.fetchall()]
 
-    # Find any new dates in the edited PTO data that already exist in Snowflake
-    new_dates = edited_pto_df['Date'].tolist()
-    duplicate_dates = [date for date in new_dates if date in existing_dates]
+    # Detect new dates added by the user
+    new_entries_df = edited_pto_df.loc[~edited_pto_df['Date'].isin(original_pto_df['Date'])]
 
-    if duplicate_dates:
-        duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
+    if not new_entries_df.empty:
+        # Find any new dates in the edited PTO data that already exist in Snowflake
+        new_dates = new_entries_df['Date'].tolist()
+        duplicate_dates = [date for date in new_dates if date in existing_dates]
 
-        # Display an error message in the sidebar
-        with st.sidebar:
-            error_message = st.empty()
-            error_message.error(f"Cannot save. PTO already exists for {selected_name} on: {duplicate_dates_str}.")
-        return  # Exit the function without saving
+        if duplicate_dates:
+            duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
+
+            # Display an error message in the sidebar
+            with st.sidebar:
+                error_message = st.empty()
+                error_message.error(f"Cannot save. PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+            return  # Exit the function without saving
 
     # Detect deleted rows
     deleted_rows = original_pto_df.loc[~original_pto_df['Date'].isin(edited_pto_df['Date'])]
@@ -108,7 +109,7 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         cur.execute(delete_query, [selected_name] + dates_to_delete)
         conn.commit()
 
-    # Handle updates and insertions
+    # Handle updates and insertions for remaining entries
     for index, row in edited_pto_df.iterrows():
         # Ensure the Date column is properly converted to datetime
         if pd.isnull(row['Date']):
