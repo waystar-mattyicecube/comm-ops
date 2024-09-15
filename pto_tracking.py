@@ -67,8 +67,10 @@ if 'snowflake_connected' not in st.session_state:
     st.session_state['snowflake_connected'] = False
 if 'selected_name' not in st.session_state:
     st.session_state['selected_name'] = 'Select Sales Rep'
-if 'pto_df' not in st.session_state:
-    st.session_state['pto_df'] = pd.DataFrame()
+if 'original_pto_df' not in st.session_state:
+    st.session_state['original_pto_df'] = pd.DataFrame()
+if 'edited_pto_df' not in st.session_state:
+    st.session_state['edited_pto_df'] = pd.DataFrame()
 
 # Snowflake connection details
 snowflake_user = 'mattyicecube'
@@ -121,10 +123,10 @@ col1, spacer, col2 = st.columns([8, 0.1, 1])
 
 # In the first column, display the dropdown and inputs for PTO submission
 with col1:
-    st.session_state['selected_name'] = st.selectbox('', names, index=names.index(st.session_state['selected_name']))
+    st.session_state['selected_name'] = st.selectbox('Select Sales Rep', names, index=names.index(st.session_state['selected_name']))
 
     if st.session_state['selected_name'] != 'Select Sales Rep':
-        day_type = st.radio('', ['Full Day', 'Half Day'])
+        day_type = st.radio('Select Day Type', ['Full Day', 'Half Day'])
         default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
         refresh_value = timedelta(days=1)
 
@@ -179,8 +181,8 @@ with col1:
 
 # Move PTO data display to the sidebar and allow editing
 if st.session_state['selected_name'] != 'Select Sales Rep':
-    # Fetch PTO data from Snowflake only once
-    if st.session_state['pto_df'].empty:
+    # Fetch PTO data only if it's empty in the session state
+    if st.session_state['original_pto_df'].empty:
         pto_query = f"""
         SELECT "DATE", "Hours Worked Text" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
         WHERE NAME = %s
@@ -189,20 +191,25 @@ if st.session_state['selected_name'] != 'Select Sales Rep':
         cur.execute(pto_query, (st.session_state['selected_name'],))
         pto_data = cur.fetchall()
         if pto_data:
-            st.session_state['pto_df'] = pd.DataFrame(pto_data, columns=["Date", "PTO"])
-            st.session_state['pto_df']['Date'] = pd.to_datetime(st.session_state['pto_df']['Date']).dt.date
+            st.session_state['original_pto_df'] = pd.DataFrame(pto_data, columns=["Date", "PTO"])
+            st.session_state['original_pto_df']['Date'] = pd.to_datetime(st.session_state['original_pto_df']['Date']).dt.date
 
-    # Separate the edited dataframe from the session state
-    edited_pto_df = st.data_editor(st.session_state['pto_df'].copy(), height=300)
+    # Separate edited dataframe from the original
+    st.session_state['edited_pto_df'] = st.data_editor(
+        st.session_state['original_pto_df'].copy(),  # Copy to avoid modifying the original df directly
+        height=300
+    )
 
+    # Button to save changes
     if st.button("Save Changes"):
-        # Handle edits: Update session state with new edited dataframe
-        st.session_state['pto_df'] = edited_pto_df
+        # Update session state with new edited dataframe
+        st.session_state['original_pto_df'] = st.session_state['edited_pto_df']
 
         # Detect deleted rows and perform batch delete
-        deleted_rows = st.session_state['pto_df'][~st.session_state['pto_df']['Date'].isin(edited_pto_df['Date'])]
+        deleted_rows = st.session_state['original_pto_df'][~st.session_state['original_pto_df']['Date'].isin(st.session_state['edited_pto_df']['Date'])]
 
-        # Handle deletes and updates here, similar to your original logic
+        # Handle deletes and updates here based on your logic
+        conn.commit()
 
-    cur.close()
-    conn.close()
+cur.close()
+conn.close()
