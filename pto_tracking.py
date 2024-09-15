@@ -80,9 +80,9 @@ if 'conn' not in st.session_state:
 
 # Fetch distinct sales rep names from Snowflake, cache for performance
 @st.cache_data
-def get_sales_reps(conn):
+def get_sales_reps(_conn):
     query = "SELECT DISTINCT NAME FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO"
-    cur = conn.cursor()
+    cur = _conn.cursor()
     cur.execute(query)
     names = [row[0] for row in cur.fetchall()]
     cur.close()
