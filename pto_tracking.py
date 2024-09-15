@@ -277,12 +277,17 @@ with col1:
                 today = datetime.now().date()
                 current_year = today.year
                 next_year = current_year + 1
+                three_months_ago = today - timedelta(days=90)
+                six_months_ahead = today + timedelta(days=180)
 
                 filter_option = st.radio("", ["All", "Recent"], index=1, key="filter_option")
 
                 if filter_option == "Recent":
-                    three_months_ago = today - timedelta(days=90)
-                    pto_df = pto_df[pto_df['Date'].apply(lambda x: (three_months_ago <= x <= today and x.year == current_year) or (x.year == next_year))]
+                    pto_df = pto_df[
+                        (pto_df['Date'] >= three_months_ago) |
+                        (pto_df['Date'] <= six_months_ahead) |
+                        (pto_df['Date'].year == next_year)
+                    ]
 
                 pto_df = pto_df.reset_index(drop=True)
                 pto_df = pto_df.sort_values(by='Date', ascending=False)
