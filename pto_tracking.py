@@ -111,7 +111,10 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     
     conn.commit()
     cur.close()
-    st.success("Changes saved successfully!")
+
+    # Display success message in the sidebar
+    with st.sidebar:
+        st.success("Changes saved successfully!")
 
 # Snowflake connection details
 snowflake_user = 'mattyicecube'
@@ -146,16 +149,16 @@ if st.session_state.get('snowflake_connected'):
     names = [row[0] for row in cur.fetchall()]
 
     # Add default option for the dropdown
-    names.insert(0, 'Select Sales Rep')
+    names.insert(0, '')
 
     # Layout with a wider first column, spacer, and a second column
     col1, spacer, col2 = st.columns([8, 0.1, 1])
 
-    # In the first column, display the dropdown and inputs for PTO submission
+    # In the first column, display the dropdown and inputs for PTO submission (no header for selectbox)
     with col1:
-        selected_name = st.selectbox('Select Sales Rep', names, key='select_rep')
+        selected_name = st.selectbox('', names, key='select_rep')
 
-        if selected_name != 'Select Sales Rep':
+        if selected_name != '':
             day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type')
             default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
             refresh_value = timedelta(days=1)
@@ -210,7 +213,7 @@ if st.session_state.get('snowflake_connected'):
                         success_message.empty()
 
     # Display PTO data and allow edits if a sales rep is selected
-    if selected_name != 'Select Sales Rep':
+    if selected_name != '':
         pto_query = f"""
         SELECT "DATE", "Hours Worked Text" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
         WHERE NAME = %s
@@ -228,12 +231,12 @@ if st.session_state.get('snowflake_connected'):
 
             # Sidebar for PTO data display and filtering
             with st.sidebar:
-                # Filter: Recent or All
+                # No header, only radio buttons for filtering
                 today = datetime.now().date()
                 current_year = today.year
                 next_year = current_year + 1
 
-                filter_option = st.radio("Filter PTO Records", ["All", "Recent"], index=1, key="filter_option")
+                filter_option = st.radio("", ["All", "Recent"], index=1, key="filter_option")
 
                 if filter_option == "Recent":
                     pto_df = pto_df[pto_df['Date'].apply(lambda x: x.year in [current_year, next_year])]
@@ -242,14 +245,15 @@ if st.session_state.get('snowflake_connected'):
                 pto_df = pto_df.reset_index(drop=True)
                 pto_df = pto_df.sort_values(by='Date', ascending=False)
 
-                # Data editor for editing PTO entries, including a selectbox for PTO
+                # Data editor for editing PTO entries, including a selectbox for PTO with custom widths
                 st.write("Edit PTO Entries:")
                 edited_pto_df = st.data_editor(
                     pto_df,
                     num_rows="dynamic",
                     column_config={
+                        "Date": st.column_config.Column(label="Date", width=260),
                         "PTO": st.column_config.SelectboxColumn(
-                            label="PTO", options=["Full Day", "Half Day"], required=True
+                            label="PTO", options=["Full Day", "Half Day"], width=160, required=True
                         ),
                     },
                     hide_index=True
