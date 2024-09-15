@@ -66,7 +66,8 @@ st.markdown(
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     error_dates = []
     
-    cur = conn.cursor()  # Open a new cursor inside the save_changes function
+    # Open a new cursor inside the save_changes function
+    cur = conn.cursor()
 
     # Detect deleted rows
     deleted_rows = original_pto_df.loc[~original_pto_df['Date'].isin(edited_pto_df['Date'])]
@@ -104,6 +105,9 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
 if 'snowflake_connected' not in st.session_state:
     st.session_state['snowflake_connected'] = False
 
+if 'conn' not in st.session_state:
+    st.session_state.conn = None
+
 # Snowflake connection details
 snowflake_user = 'mattyicecube'
 snowflake_password = 'Mattman1159!'
@@ -115,7 +119,7 @@ snowflake_schema = 'PUBLIC'
 # Establish connection to Snowflake if not already connected
 if not st.session_state['snowflake_connected']:
     try:
-        conn = snowflake.connector.connect(
+        st.session_state.conn = snowflake.connector.connect(
             user=snowflake_user,
             password=snowflake_password,
             account=snowflake_account,
@@ -127,15 +131,8 @@ if not st.session_state['snowflake_connected']:
         st.success("Connected to Snowflake successfully.")
     except Exception as e:
         st.error(f"Error connecting to Snowflake: {e}")
-else:
-    conn = snowflake.connector.connect(
-        user=snowflake_user,
-        password=snowflake_password,
-        account=snowflake_account,
-        warehouse=snowflake_warehouse,
-        database=snowflake_database,
-        schema=snowflake_schema
-    )
+
+conn = st.session_state.conn
 
 # Fetch distinct values for the NAME column in STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
 query = "SELECT DISTINCT NAME FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO"
@@ -257,5 +254,4 @@ if selected_name != 'Select Sales Rep':
                 args=(edited_pto_df, original_pto_df, selected_name, conn)
             )
 
-cur.close()
-conn.close()
+cur.close()  # Close the cursor but keep the connection open for other operations
