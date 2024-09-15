@@ -184,7 +184,6 @@ if 'conn' not in st.session_state:
             schema=snowflake_schema
         )
         st.session_state['snowflake_connected'] = True
-        st.success("Connected to Snowflake successfully.")
     except Exception as e:
         st.error(f"Error connecting to Snowflake: {e}")
 
