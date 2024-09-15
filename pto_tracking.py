@@ -78,7 +78,14 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur.execute(check_query, (selected_name,))
     existing_dates = [row[0] for row in cur.fetchall()]
 
-    # Detect new dates added by the user (only new rows not in the original PTO data)
+    # Check for duplicates within the edited PTO DataFrame itself
+    duplicate_dates_in_df = edited_pto_df['Date'].duplicated(keep=False)
+
+    if duplicate_dates_in_df.any():
+        st.error("There are duplicate dates in the edited PTO entries. Please remove duplicates.")
+        return  # Exit the function if duplicates exist within the DataFrame itself
+
+    # Detect new dates added by the user
     new_entries_df = edited_pto_df.loc[~edited_pto_df['Date'].isin(original_pto_df['Date'])]
 
     # Check for duplicates with the existing PTO data in Snowflake
@@ -284,10 +291,9 @@ if st.session_state.get('snowflake_connected'):
                 )
 
                 # Save changes button with a callback to update the data
-                if st.button(
+                st.button(
                     "Save Changes", 
                     key='save_changes_button', 
                     on_click=save_changes, 
                     args=(edited_pto_df, original_pto_df, selected_name, conn)
-                ):
-                    pass
+                )
