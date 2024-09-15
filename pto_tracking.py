@@ -269,7 +269,9 @@ with col1:
 
         if pto_data:
             pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
-            pto_df['Date'] = pd.to_datetime(pto_df['Date']).dt.date
+
+            # Convert 'Date' column to datetime type to avoid 'dt' accessor issues
+            pto_df['Date'] = pd.to_datetime(pto_df['Date'], errors='coerce').dt.date
 
             original_pto_df = pto_df.copy()
 
@@ -286,7 +288,7 @@ with col1:
                     pto_df = pto_df[
                         (pto_df['Date'] >= three_months_ago) |
                         (pto_df['Date'] <= six_months_ahead) |
-                        (pto_df['Date'].dt.year == next_year)
+                        (pd.to_datetime(pto_df['Date']).dt.year == next_year)
                     ]
 
                 pto_df = pto_df.reset_index(drop=True)
