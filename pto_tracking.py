@@ -100,7 +100,7 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
             conflicting_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
 
             with st.sidebar:
-                st.error(f"Cannot add PTO for the following dates as they already exist: {', '.join(error_dates)}")
+                st.error(f"Cannot save. The following PTO dates already exist for {selected_name}: {conflicting_dates_str}.")
             return  # Prevent submission if duplicates are found
 
     # Detect deleted rows
