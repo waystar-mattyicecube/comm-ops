@@ -65,7 +65,8 @@ st.markdown(
 # Callback function to save changes with duplicate check only for new entries
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     if conn is None:
-        st.error("Database connection is not available.")
+        with st.sidebar:
+            st.error("Database connection is not available.")
         return
 
     cur = conn.cursor()
@@ -82,7 +83,8 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     duplicate_dates_in_df = edited_pto_df['Date'].duplicated(keep=False)
 
     if duplicate_dates_in_df.any():
-        st.error("There are duplicate dates in the edited PTO entries. Please remove duplicates.")
+        with st.sidebar:
+            st.error("There are duplicate dates in the edited PTO entries. Please remove duplicates.")
         return  # Exit the function if duplicates exist within the DataFrame itself
 
     # Detect new dates added by the user
@@ -95,7 +97,8 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
 
         if duplicate_dates:
             duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
-            st.error(f"Cannot save. PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+            with st.sidebar:
+                st.error(f"Cannot save. PTO already exists for {selected_name} on: {duplicate_dates_str}.")
             return  # Prevent submission if duplicates are found
 
     # Detect deleted rows
@@ -116,7 +119,8 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     for index, row in edited_pto_df.iterrows():
         # Ensure the Date column is properly converted to datetime
         if pd.isnull(row['Date']):
-            st.warning(f"Skipping invalid date in row {index}")
+            with st.sidebar:
+                st.warning(f"Skipping invalid date in row {index}")
             continue
 
         # Convert the date to datetime if necessary
@@ -220,8 +224,9 @@ if st.session_state.get('snowflake_connected'):
 
                     if existing_dates:
                         existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
-                        error_message = st.empty()
-                        error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
+                        with st.sidebar:
+                            error_message = st.empty()
+                            error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
                         time.sleep(10)
                         error_message.empty()
                     else:
@@ -238,8 +243,9 @@ if st.session_state.get('snowflake_connected'):
                             current_date += timedelta(days=1)
                         conn.commit()
 
-                        success_message = st.empty()
-                        success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date} (excluding weekends).")
+                        with st.sidebar:
+                            success_message = st.empty()
+                            success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date} (excluding weekends).")
                         time.sleep(3)
                         success_message.empty()
 
