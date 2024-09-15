@@ -21,9 +21,8 @@ st.markdown(
 
 # Callback function to save changes with duplicate check only for new entries
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn, existing_dates_set):
-    if conn is None:
-        with st.sidebar:
-            st.error("Database connection is not available.")
+    if conn is None or conn.is_closed():
+        st.error("Database connection is not available.")
         return
 
     cur = conn.cursor()
@@ -85,7 +84,7 @@ snowflake_database = 'STREAMLIT_APPS'
 snowflake_schema = 'PUBLIC'
 
 # Establish connection to Snowflake if not already connected
-if 'conn' not in st.session_state:
+if 'conn' not in st.session_state or st.session_state.conn.is_closed():
     try:
         st.session_state.conn = snowflake.connector.connect(
             user=snowflake_user,
@@ -116,12 +115,13 @@ if st.session_state.get('snowflake_connected'):
 
     # In the first column, display the dropdown and inputs for PTO submission (no header for selectbox)
     with col1:
-        # Add a placeholder in the selectbox with the format_func
+        # Add a placeholder in the selectbox with the format_func and add label_visibility for the label issue
         selected_name = st.selectbox(
-            '', 
+            'Select Sales Rep', 
             names, 
             key='select_rep', 
-            format_func=lambda x: 'Select Sales Rep' if x == '' else x
+            format_func=lambda x: 'Select Sales Rep' if x == '' else x,
+            label_visibility="collapsed"
         )
 
         if selected_name != '':
@@ -148,8 +148,8 @@ if st.session_state.get('snowflake_connected'):
                     current_year = today.year
                     next_year = current_year + 1
 
-                    # Remove the header but keep the filter functionality
-                    filter_option = st.radio("", ["All", "Recent"], index=1)
+                    # Radio button to filter PTO entries, ensure label visibility to avoid warnings
+                    filter_option = st.radio("Filter PTO Entries", ["All", "Recent"], index=1, label_visibility="collapsed")
 
                     if filter_option == "Recent":
                         pto_df = pto_df[pto_df['Date'].apply(lambda x: x.year in [current_year, next_year])]
@@ -178,8 +178,7 @@ if st.session_state.get('snowflake_connected'):
                     if st.button("Save Changes"):
                         save_changes(edited_pto_df, original_pto_df, selected_name, conn, existing_dates_set)
             else:
-                with st.sidebar:
-                    st.write("No PTO records found for the selected sales rep.")
+                st.sidebar.write("No PTO records found for the selected sales rep.")
 
 cur.close()
 conn.close()
