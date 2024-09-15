@@ -86,6 +86,14 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         conn.commit()
 
     # Handle updates and insertions
+    existing_query = f"""
+    SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+    WHERE NAME = %s
+    """
+    cur.execute(existing_query, (selected_name,))
+    existing_dates = [row[0] for row in cur.fetchall()]
+    existing_dates_set = set(existing_dates)  # Store existing dates in a set for fast lookup
+
     for index, row in edited_pto_df.iterrows():
         # Ensure the Date column is properly converted to datetime
         if pd.isnull(row['Date']):
@@ -95,6 +103,11 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         # Convert the date to datetime if necessary
         if isinstance(row['Date'], str):
             row['Date'] = pd.to_datetime(row['Date'])
+
+        # Check if the date is already in the existing records
+        if row['Date'] in existing_dates_set:
+            error_dates.append(row['Date'].strftime('%b %d, %Y'))
+            continue
 
         # Check if the date is valid and avoid weekends
         if row['Date'].weekday() in [5, 6]:
@@ -112,12 +125,15 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     conn.commit()
     cur.close()
 
-    # Display success message below the save changes button in the sidebar for 5 seconds
-    with st.sidebar:
-        success_message = st.empty()
-        success_message.success("Changes saved successfully!")
-        time.sleep(5)
-        success_message.empty()
+    # Display error message for duplicate dates
+    if error_dates:
+        st.error(f"The following dates already exist for {selected_name}: {', '.join(error_dates)}")
+    else:
+        with st.sidebar:
+            success_message = st.empty()
+            success_message.success("Changes saved successfully!")
+            time.sleep(5)
+            success_message.empty()
 
 # Snowflake connection details
 snowflake_user = 'mattyicecube'
