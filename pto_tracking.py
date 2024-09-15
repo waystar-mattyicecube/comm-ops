@@ -87,7 +87,10 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates_in_df])
 
         with st.sidebar:
-            st.error(f"PTO already occurs on the following dates: {duplicate_dates_str}. Please revise entries.")
+            error_message = st.empty()
+            error_message.error(f"PTO already occurs on the following dates: {duplicate_dates_str}. Please revise entries.")
+            time.sleep(5)  # Display the error for 5 seconds
+            error_message.empty()  # Clear the message after 5 seconds
         return  # Exit the function if duplicates exist within the DataFrame itself
 
     # Detect new dates added by the user
@@ -103,7 +106,10 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
             conflicting_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
 
             with st.sidebar:
-                st.error(f"Cannot save. The following PTO dates already exist for {selected_name}: {conflicting_dates_str}.")
+                error_message = st.empty()
+                error_message.error(f"Cannot save. The following PTO dates already exist for {selected_name}: {conflicting_dates_str}.")
+                time.sleep(5)  # Display the error for 5 seconds
+                error_message.empty()  # Clear the message after 5 seconds
             return  # Prevent submission if duplicates are found
 
     # Detect deleted rows
@@ -125,7 +131,10 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         # Ensure the Date column is properly converted to datetime
         if pd.isnull(row['Date']):
             with st.sidebar:
-                st.warning(f"Skipping invalid date in row {index}")
+                warning_message = st.empty()
+                warning_message.warning(f"Skipping invalid date in row {index}")
+                time.sleep(5)  # Display the warning for 5 seconds
+                warning_message.empty()  # Clear the message after 5 seconds
             continue
 
         # Convert the date to datetime if necessary
@@ -152,8 +161,8 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     with st.sidebar:
         success_message = st.empty()
         success_message.success("Changes saved successfully!")
-        time.sleep(5)
-        success_message.empty()
+        time.sleep(5)  # Display the success message for 5 seconds
+        success_message.empty()  # Clear the message after 5 seconds
 
 # Snowflake connection details
 snowflake_user = 'mattyicecube'
@@ -238,7 +247,7 @@ if st.session_state.get('snowflake_connected'):
                         with st.sidebar:
                             error_message = st.empty()
                             error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
-                        time.sleep(10)
+                        time.sleep(5)
                         error_message.empty()
                     else:
                         hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
@@ -257,7 +266,7 @@ if st.session_state.get('snowflake_connected'):
                         with st.sidebar:
                             success_message = st.empty()
                             success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date} (excluding weekends).")
-                        time.sleep(3)
+                        time.sleep(5)
                         success_message.empty()
 
     # Display PTO data and allow edits if a sales rep is selected
