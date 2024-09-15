@@ -113,7 +113,7 @@ if st.session_state.get('snowflake_connected'):
     # Layout with a wider first column, spacer, and a second column
     col1, spacer, col2 = st.columns([8, 0.1, 1])
 
-    # In the first column, display the dropdown and inputs for PTO submission (no header for selectbox)
+    # In the first column, display the dropdown and inputs for PTO submission (main screen)
     with col1:
         # Add a placeholder in the selectbox with the format_func and add label_visibility for the label issue
         selected_name = st.selectbox(
@@ -143,42 +143,51 @@ if st.session_state.get('snowflake_connected'):
 
                 existing_dates_set = set(original_pto_df['Date'])
 
-                with st.sidebar:
-                    today = datetime.now().date()
-                    current_year = today.year
-                    next_year = current_year + 1
+                # Main screen for user interaction
+                st.write(f"Editing PTO entries for {selected_name}")
 
-                    # Radio button to filter PTO entries, ensure label visibility to avoid warnings
-                    filter_option = st.radio("Filter PTO Entries", ["All", "Recent"], index=1, label_visibility="collapsed")
+                # Show the PTO data and allow edits
+                edited_pto_df = st.data_editor(
+                    pto_df,
+                    num_rows="dynamic",
+                    column_config={
+                        "PTO": st.column_config.SelectboxColumn(
+                            label="PTO", options=["Full Day", "Half Day"], required=True, width=100
+                        ),
+                        "Date": st.column_config.Column(
+                            label="Date", required=True, width=150
+                        )
+                    },
+                    hide_index=True  # Hide the row indexes
+                )
 
-                    if filter_option == "Recent":
-                        pto_df = pto_df[pto_df['Date'].apply(lambda x: x.year in [current_year, next_year])]
+                # Button to save changes on the main screen
+                if st.button("Save Changes"):
+                    save_changes(edited_pto_df, original_pto_df, selected_name, conn, existing_dates_set)
 
-                    # Reset index to remove the row index
-                    pto_df = pto_df.reset_index(drop=True)
-                    pto_df = pto_df.sort_values(by='Date', ascending=False)
-
-                    # Display the DataFrame in the sidebar with editing capabilities and hide index
-                    st.write("Edit/Delete Entries:")
-                    edited_pto_df = st.data_editor(
-                        pto_df,
-                        num_rows="dynamic",
-                        column_config={
-                            "PTO": st.column_config.SelectboxColumn(
-                                label="PTO", options=["Full Day", "Half Day"], required=True, width=100
-                            ),
-                            "Date": st.column_config.Column(
-                                label="Date", required=True, width=150
-                            )
-                        },
-                        hide_index=True  # Hide the row indexes
-                    )
-
-                    # Button to save changes
-                    if st.button("Save Changes"):
-                        save_changes(edited_pto_df, original_pto_df, selected_name, conn, existing_dates_set)
             else:
-                st.sidebar.write("No PTO records found for the selected sales rep.")
+                st.write(f"No PTO records found for {selected_name}.")
 
+    # Sidebar for PTO filtering and summary view
+    with st.sidebar:
+        today = datetime.now().date()
+        current_year = today.year
+        next_year = current_year + 1
+
+        # Radio button to filter PTO entries, ensure label visibility to avoid warnings
+        filter_option = st.radio("Filter PTO Entries", ["All", "Recent"], index=1, label_visibility="collapsed")
+
+        if filter_option == "Recent":
+            pto_df = pto_df[pto_df['Date'].apply(lambda x: x.year in [current_year, next_year])]
+
+        # Reset index to remove the row index
+        pto_df = pto_df.reset_index(drop=True)
+        pto_df = pto_df.sort_values(by='Date', ascending=False)
+
+        # Show summary of PTO data
+        st.write(f"Summary of PTO for {selected_name}:")
+        st.dataframe(pto_df[['Date', 'PTO']])
+
+# Close the connection at the end
 cur.close()
 conn.close()
