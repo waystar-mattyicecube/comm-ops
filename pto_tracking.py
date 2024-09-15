@@ -221,20 +221,38 @@ if selected_name != 'Select Sales Rep':
         # Store the original PTO data before editing
         original_pto_df = pto_df.copy()
 
-        # Display the data editor
-        edited_pto_df = st.data_editor(
-            pto_df,
-            num_rows="dynamic",
-            key='pto_editor',  # Unique key for data editor
-        )
+        # Sidebar for PTO data display and filtering
+        with st.sidebar:
+            # Filter: Recent or All
+            today = datetime.now().date()
+            current_year = today.year
+            next_year = current_year + 1
 
-        # Save changes button with a callback to update the data
-        st.button(
-            "Save Changes", 
-            key='save_changes_button', 
-            on_click=save_changes, 
-            args=(edited_pto_df, original_pto_df, selected_name, conn, cur)
-        )
+            filter_option = st.radio("Filter PTO Records", ["All", "Recent"], index=1, key="filter_option")
+
+            if filter_option == "Recent":
+                pto_df = pto_df[pto_df['Date'].apply(lambda x: x.year in [current_year, next_year])]
+
+            # Sort and reset index for better display
+            pto_df = pto_df.reset_index(drop=True)
+            pto_df = pto_df.sort_values(by='Date', ascending=False)
+
+            # Data editor for editing PTO entries
+            st.write("Edit PTO Entries:")
+            edited_pto_df = st.data_editor(
+                pto_df,
+                num_rows="dynamic",
+                key='pto_editor',
+                hide_index=True
+            )
+
+            # Save changes button with a callback to update the data
+            st.button(
+                "Save Changes", 
+                key='save_changes_button', 
+                on_click=save_changes, 
+                args=(edited_pto_df, original_pto_df, selected_name, conn, cur)
+            )
 
 cur.close()
 conn.close()
