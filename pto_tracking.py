@@ -112,11 +112,12 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     conn.commit()
     cur.close()
 
-    # Display success message below the save changes button for 5 seconds
-    success_message = st.empty()
-    success_message.success("Changes saved successfully!")
-    time.sleep(5)
-    success_message.empty()
+    # Display success message below the save changes button in the sidebar for 5 seconds
+    with st.sidebar:
+        success_message = st.empty()
+        success_message.success("Changes saved successfully!")
+        time.sleep(5)
+        success_message.empty()
 
 # Snowflake connection details
 snowflake_user = 'mattyicecube'
