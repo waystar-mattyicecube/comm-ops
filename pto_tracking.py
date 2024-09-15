@@ -286,7 +286,7 @@ with col1:
                     pto_df = pto_df[
                         (pto_df['Date'] >= three_months_ago) |
                         (pto_df['Date'] <= six_months_ahead) |
-                        (pto_df['Date'].year == next_year)
+                        (pto_df['Date'].dt.year == next_year)
                     ]
 
                 pto_df = pto_df.reset_index(drop=True)
