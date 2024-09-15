@@ -74,18 +74,18 @@ def get_snowflake_connection():
         schema='PUBLIC'
     )
 
-# Cache Snowflake query results
+# Cache Snowflake query results and avoid hashing the connection object
 @st.cache_data
-def fetch_distinct_names(conn):
-    cur = conn.cursor()
+def fetch_distinct_names(_conn):
+    cur = _conn.cursor()
     query = "SELECT DISTINCT NAME FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO"
     cur.execute(query)
     names = [row[0] for row in cur.fetchall()]
     return names
 
 @st.cache_data
-def fetch_pto_data(conn, selected_name):
-    cur = conn.cursor()
+def fetch_pto_data(_conn, selected_name):
+    cur = _conn.cursor()
     query = f"""
     SELECT "DATE", "Hours Worked Text" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
     WHERE NAME = %s
