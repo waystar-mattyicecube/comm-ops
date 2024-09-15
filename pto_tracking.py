@@ -69,7 +69,7 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         return
 
     cur = conn.cursor()
-    
+
     # Get existing PTO dates from Snowflake for the selected user
     check_query = """
     SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
@@ -78,7 +78,7 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur.execute(check_query, (selected_name,))
     existing_dates = [row[0] for row in cur.fetchall()]
 
-    # Detect new dates added by the user
+    # Detect new dates added by the user (only new rows not in the original PTO data)
     new_entries_df = edited_pto_df.loc[~edited_pto_df['Date'].isin(original_pto_df['Date'])]
 
     if not new_entries_df.empty:
