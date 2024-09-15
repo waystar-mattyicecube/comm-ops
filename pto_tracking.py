@@ -242,12 +242,16 @@ if st.session_state.get('snowflake_connected'):
                 pto_df = pto_df.reset_index(drop=True)
                 pto_df = pto_df.sort_values(by='Date', ascending=False)
 
-                # Data editor for editing PTO entries
+                # Data editor for editing PTO entries, including a selectbox for PTO
                 st.write("Edit PTO Entries:")
                 edited_pto_df = st.data_editor(
                     pto_df,
                     num_rows="dynamic",
-                    key='pto_editor',
+                    column_config={
+                        "PTO": st.column_config.SelectboxColumn(
+                            label="PTO", options=["Full Day", "Half Day"], required=True
+                        ),
+                    },
                     hide_index=True
                 )
 
