@@ -81,19 +81,15 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     # Detect new dates added by the user (only new rows not in the original PTO data)
     new_entries_df = edited_pto_df.loc[~edited_pto_df['Date'].isin(original_pto_df['Date'])]
 
+    # Check for duplicates with the existing PTO data in Snowflake
     if not new_entries_df.empty:
-        # Find any new dates in the edited PTO data that already exist in Snowflake
         new_dates = new_entries_df['Date'].tolist()
         duplicate_dates = [date for date in new_dates if date in existing_dates]
 
         if duplicate_dates:
             duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
-
-            # Display an error message in the sidebar
-            with st.sidebar:
-                error_message = st.empty()
-                error_message.error(f"Cannot save. PTO already exists for {selected_name} on: {duplicate_dates_str}.")
-            return  # Exit the function without saving
+            st.error(f"Cannot save. PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+            return  # Prevent submission if duplicates are found
 
     # Detect deleted rows
     deleted_rows = original_pto_df.loc[~original_pto_df['Date'].isin(edited_pto_df['Date'])]
@@ -288,9 +284,10 @@ if st.session_state.get('snowflake_connected'):
                 )
 
                 # Save changes button with a callback to update the data
-                st.button(
+                if st.button(
                     "Save Changes", 
                     key='save_changes_button', 
                     on_click=save_changes, 
                     args=(edited_pto_df, original_pto_df, selected_name, conn)
-                )
+                ):
+                    pass
