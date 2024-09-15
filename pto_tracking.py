@@ -120,15 +120,20 @@ with col1:
     selected_name = st.selectbox('', names)
 
     if selected_name != 'Select Sales Rep':
-        day_type = st.radio('', ['Full Day', 'Half Day'])
+        day_type = st.radio('', ['Full Day', 'Half Day'], key="day_type")
         default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
         refresh_value = timedelta(days=1)
 
-        date_range_string = date_range_picker(picker_type=PickerType.date,
-                                              start=default_start, end=default_end,
-                                              key='date_range_picker',
-                                              refresh_button={'is_show': False, 'button_name': 'Refresh Last 1 Days',
-                                                              'refresh_value': refresh_value})
+        # Use session state for the date picker to ensure it updates correctly
+        if 'date_range_string' not in st.session_state:
+            st.session_state['date_range_string'] = date_range_picker(
+                picker_type=PickerType.date,
+                start=default_start,
+                end=default_end,
+                key='date_range_picker',
+                refresh_button={'is_show': False, 'button_name': 'Refresh Last 1 Days', 'refresh_value': refresh_value}
+            )
+        date_range_string = st.session_state['date_range_string']
 
         if date_range_string:
             start_date, end_date = date_range_string
@@ -140,7 +145,7 @@ with col1:
 
             st.write(f"{formatted_start_date} - {formatted_end_date}")
 
-            if st.button('Submit'):
+            if st.button('Submit', key="submit_button"):
                 check_query = f"""
                 SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
                 WHERE NAME = %s AND "DATE" BETWEEN %s AND %s
@@ -155,8 +160,8 @@ with col1:
                     time.sleep(10)
                     error_message.empty()
                 else:
-                    hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
-                    hours_worked = 0 if day_type == 'Full Day' else 0.5
+                    hours_worked_text = "Full Day" if st.session_state["day_type"] == 'Full Day' else "Half Day"
+                    hours_worked = 0 if st.session_state["day_type"] == 'Full Day' else 0.5
                     current_date = start_date
                     while current_date <= end_date:
                         if current_date.weekday() < 5:  # Ignore weekends
@@ -205,9 +210,9 @@ if selected_name != 'Select Sales Rep':
             next_year = current_year + 1
 
             # Remove the header but keep the filter functionality
-            filter_option = st.radio("", ["All", "Recent"], index=1)
+            filter_option = st.radio("", ["All", "Recent"], index=1, key="filter_option")
 
-            if filter_option == "Recent":
+            if st.session_state["filter_option"] == "Recent":
                 pto_df = pto_df[pto_df['Date'].apply(lambda x: x.year in [current_year, next_year])]
 
             # Reset index to remove the row index
@@ -231,7 +236,7 @@ if selected_name != 'Select Sales Rep':
             )
 
             # Button to save changes
-            if st.button("Save Changes"):
+            if st.button("Save Changes", key="save_changes"):
                 error_dates = []
 
                 # Detect deleted rows
