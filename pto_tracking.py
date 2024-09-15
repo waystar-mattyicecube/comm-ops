@@ -63,9 +63,7 @@ st.markdown(
 )
 
 # Callback function to save changes
-def save_changes(edited_pto_df, original_pto_df, selected_name):
-    conn = st.session_state.get('conn', None)
-    
+def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     if conn is None:
         st.error("Database connection is not available.")
         return
@@ -128,11 +126,10 @@ if 'conn' not in st.session_state:
         st.success("Connected to Snowflake successfully.")
     except Exception as e:
         st.error(f"Error connecting to Snowflake: {e}")
-else:
-    conn = st.session_state.conn
 
 # Fetch distinct values for the NAME column in STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-if st.session_state['snowflake_connected']:
+if st.session_state.get('snowflake_connected'):
+    conn = st.session_state.conn
     query = "SELECT DISTINCT NAME FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO"
     cur = conn.cursor()
     cur.execute(query)
@@ -249,7 +246,7 @@ if st.session_state['snowflake_connected']:
                     "Save Changes", 
                     key='save_changes_button', 
                     on_click=save_changes, 
-                    args=(edited_pto_df, original_pto_df, selected_name)
+                    args=(edited_pto_df, original_pto_df, selected_name, conn)
                 )
 
     cur.close()
