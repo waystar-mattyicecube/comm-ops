@@ -251,9 +251,9 @@ if st.session_state.get('snowflake_connected'):
                     pto_df,
                     num_rows="dynamic",
                     column_config={
-                        "Date": st.column_config.Column(label="Date", width=260),
+                        "Date": st.column_config.Column(label="Date", width=160),
                         "PTO": st.column_config.SelectboxColumn(
-                            label="PTO", options=["Full Day", "Half Day"], width=160, required=True
+                            label="PTO", options=["Full Day", "Half Day"], width=110, required=True
                         ),
                     },
                     hide_index=True
