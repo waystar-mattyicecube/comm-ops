@@ -206,38 +206,12 @@ if st.session_state.get('snowflake_connected'):
 
                 st.write(f"{formatted_start_date} - {formatted_end_date}")
 
-                if st.button('Submit', key='submit_button'):
-                    check_query = f"""
-                    SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-                    WHERE NAME = %s AND "DATE" BETWEEN %s AND %s
-                    """
-                    cur.execute(check_query, (selected_name, start_date, end_date))
-                    existing_dates = [row[0] for row in cur.fetchall()]
-
-                    if existing_dates:
-                        existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
-                        error_message = st.empty()
-                        error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
-                        time.sleep(10)
-                        error_message.empty()
-                    else:
-                        hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
-                        hours_worked = 0 if day_type == 'Full Day' else 0.5
-                        current_date = start_date
-                        while current_date <= end_date:
-                            if current_date.weekday() < 5:  # Ignore weekends
-                                insert_query = f"""
-                                INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "Hours Worked Text", "Hours Worked", "DATE")
-                                VALUES (%s, %s, %s, %s)
-                                """
-                                cur.execute(insert_query, (selected_name, hours_worked_text, hours_worked, current_date))
-                            current_date += timedelta(days=1)
-                        conn.commit()
-
-                        success_message = st.empty()
-                        success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date} (excluding weekends).")
-                        time.sleep(3)
-                        success_message.empty()
+                st.button(
+                    "Submit",
+                    key='submit_button',
+                    on_click=save_changes,
+                    args=(edited_pto_df, original_pto_df, selected_name, conn)
+                )
 
     # Display PTO data and allow edits if a sales rep is selected
     if selected_name != '':
@@ -287,10 +261,9 @@ if st.session_state.get('snowflake_connected'):
                 )
 
                 # Save changes button with a callback to update the data
-                if st.button(
+                st.button(
                     "Save Changes", 
                     key='save_changes_button', 
                     on_click=save_changes, 
                     args=(edited_pto_df, original_pto_df, selected_name, conn)
-                ):
-                    pass
+                )
