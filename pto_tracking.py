@@ -143,6 +143,7 @@ def reset_session_state_on_rep_change(selected_name):
     if 'last_selected_rep' not in st.session_state or st.session_state['last_selected_rep'] != selected_name:
         st.session_state['last_selected_rep'] = selected_name
         st.session_state['pto_data'] = None  # Reset PTO data to force a refresh
+        st.session_state['edited_pto_df'] = None  # Reset edited data
 
 # Establish connection to Snowflake and fetch distinct names
 conn = get_snowflake_connection()
@@ -231,16 +232,18 @@ with col1:
         else:
             pto_data = st.session_state['pto_data']
 
-        edited_pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
-        edited_pto_df['Date'] = pd.to_datetime(edited_pto_df['Date']).dt.date
+        original_pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
+        original_pto_df['Date'] = pd.to_datetime(original_pto_df['Date']).dt.date
 
-        original_pto_df = edited_pto_df.copy()
+        # Track the edits made in the data editor via session state
+        if 'edited_pto_df' not in st.session_state or st.session_state['edited_pto_df'] is None:
+            st.session_state['edited_pto_df'] = original_pto_df.copy()
 
         # Render the data editor in the sidebar (only once, and update it on changes)
         with st.sidebar:
             st.write("Edit PTO Entries:")
-            edited_pto_df = st.data_editor(
-                edited_pto_df,
+            st.session_state['edited_pto_df'] = st.data_editor(
+                st.session_state['edited_pto_df'],
                 num_rows="dynamic",
                 column_config={
                     "Date": st.column_config.Column(label="Date", width=160),
@@ -257,7 +260,8 @@ with col1:
             "Save Changes", 
             key='save_changes_button'
         ):
-            save_changes(edited_pto_df, original_pto_df, selected_name, conn)
+            # Pass the edited DataFrame from session state to the save function
+            save_changes(st.session_state['edited_pto_df'], original_pto_df, selected_name, conn)
 
             # Refresh the data editor with updated data after saving
             st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
