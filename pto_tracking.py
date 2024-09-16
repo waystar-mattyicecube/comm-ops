@@ -109,18 +109,32 @@ def filter_pto_data(pto_data, filter_type):
 
     return filtered_data
 
+# Function to compare edited and original data, and check for duplicates
+def get_changed_rows(edited_pto_df, original_pto_df):
+    changed_rows = []
+    
+    for idx, edited_row in edited_pto_df.iterrows():
+        # Check if row exists in original and if any changes are made
+        if idx in original_pto_df.index:
+            original_row = original_pto_df.loc[idx]
+            if edited_row["Date"] != original_row["Date"] or edited_row["PTO"] != original_row["PTO"]:
+                changed_rows.append(edited_row)
+        else:
+            # New row, needs to be checked
+            changed_rows.append(edited_row)
+    
+    return pd.DataFrame(changed_rows)
+
 # Function to insert, update, and delete records based on the data editor's changes
 def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
-    # Identify rows that were changed or added
-    changed_data = edited_pto_df.compare(original_pto_df)
+    # Find changed rows
+    changed_rows_df = get_changed_rows(edited_pto_df, original_pto_df)
     
-    # Extract only the new or modified dates
-    changed_dates = edited_pto_df.loc[changed_data.index, 'Date'].tolist()
-
-    # Check for existing duplicate dates in Snowflake
-    if changed_dates:
+    if not changed_rows_df.empty:
+        # Check for duplicates in Snowflake for only changed rows
+        changed_dates = changed_rows_df['Date'].tolist()
         check_existing_dates_query = """
         SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
         WHERE NAME = %s AND "DATE" IN (%s)
