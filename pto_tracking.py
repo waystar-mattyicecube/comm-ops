@@ -237,7 +237,7 @@ with col1:
     reset_session_state_on_rep_change(selected_name)
 
     if selected_name != '':
-        day_type = st.radio('Day Type', ['Full Day', 'Half Day'], key='day_type')
+        day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type', label_visibility='collapsed')
         default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
 
         # Removed `refresh_value` to fix the KeyError issue
