@@ -104,93 +104,97 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
     # Get existing PTO dates from Snowflake for the selected user
-    check_query = """
-    SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-    WHERE NAME = %s
-    """
-    cur.execute(check_query, (selected_name,))
-    existing_dates = [row[0] for row in cur.fetchall()]
+    try:
+        check_query = """
+        SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+        WHERE NAME = %s
+        """
+        cur.execute(check_query, (selected_name,))
+        existing_dates = [row[0] for row in cur.fetchall()]
+    except Exception as e:
+        st.sidebar.error(f"Error fetching existing PTO dates: {str(e)}")
+        return
 
-    # Check for duplicates within the edited PTO DataFrame itself
-    duplicate_dates_in_df = edited_pto_df['Date'][edited_pto_df['Date'].duplicated(keep=False)].drop_duplicates()
-
-    if not duplicate_dates_in_df.empty:
-        # Format the distinct duplicate dates for display
-        duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates_in_df])
-
-        with st.sidebar:
-            error_message = st.empty()
-            error_message.error(f"PTO already occurs on the following dates: {duplicate_dates_str}. Please revise entries.")
-            time.sleep(5)  # Display the error for 5 seconds
-            error_message.empty()  # Clear the message after 5 seconds
-        return  # Exit the function if duplicates exist within the DataFrame itself
-
-    # Detect new dates added by the user
+    # Detect new entries
     new_entries_df = edited_pto_df.loc[~edited_pto_df['Date'].isin(original_pto_df['Date'])]
 
-    # Check for duplicates with the existing PTO data in Snowflake
+    # Insert new entries
     if not new_entries_df.empty:
-        new_dates = new_entries_df['Date'].tolist()
-        duplicate_dates = [date for date in new_dates if date in existing_dates]
+        try:
+            for index, row in new_entries_df.iterrows():
+                if pd.isnull(row['Date']):
+                    continue
 
-        if duplicate_dates:
-            # Format the conflicting dates to be more user-friendly
-            conflicting_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
+                if isinstance(row['Date'], str):
+                    row['Date'] = pd.to_datetime(row['Date'])
 
-            with st.sidebar:
-                error_message = st.empty()
-                error_message.error(f"Cannot save. The following PTO dates already exist for {selected_name}: {conflicting_dates_str}.")
-                time.sleep(5)  # Display the error for 5 seconds
-                error_message.empty()  # Clear the message after 5 seconds
-            return  # Prevent submission if duplicates are found
+                # Only process weekdays (skip weekends)
+                if row['Date'].weekday() in [5, 6]:
+                    continue
+
+                hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
+
+                insert_query = f"""
+                INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "Hours Worked Text", "Hours Worked", "DATE")
+                VALUES (%s, %s, %s, %s)
+                """
+                cur.execute(insert_query, (selected_name, row['PTO'], hours_worked, row['Date']))
+            conn.commit()
+            st.sidebar.success("New entries successfully inserted into Snowflake.")
+        except Exception as e:
+            conn.rollback()
+            st.sidebar.error(f"Error inserting new PTO entries: {str(e)}")
+            return
 
     # Detect deleted rows
     deleted_rows = original_pto_df.loc[~original_pto_df['Date'].isin(edited_pto_df['Date'])]
 
-    # Perform batch delete for all dates that need to be removed
+    # Delete removed entries
     if not deleted_rows.empty:
-        dates_to_delete = deleted_rows['Date'].tolist()
+        try:
+            dates_to_delete = deleted_rows['Date'].tolist()
+            delete_query = f"""
+            DELETE FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+            WHERE NAME = %s AND "DATE" IN ({','.join(['%s' for _ in dates_to_delete])})
+            """
+            cur.execute(delete_query, [selected_name] + dates_to_delete)
+            conn.commit()
+            st.sidebar.success("Deleted PTO entries successfully.")
+        except Exception as e:
+            conn.rollback()
+            st.sidebar.error(f"Error deleting PTO entries: {str(e)}")
+            return
 
-        delete_query = f"""
-        DELETE FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-        WHERE NAME = %s AND "DATE" IN ({','.join(['%s' for _ in dates_to_delete])})
-        """
-        cur.execute(delete_query, [selected_name] + dates_to_delete)
+    # Handle updates for modified entries
+    try:
+        for index, row in edited_pto_df.iterrows():
+            if pd.isnull(row['Date']):
+                continue
+
+            if isinstance(row['Date'], str):
+                row['Date'] = pd.to_datetime(row['Date'])
+
+            # Only process weekdays (skip weekends)
+            if row['Date'].weekday() in [5, 6]:
+                continue
+
+            hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
+
+            update_query = f"""
+            UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+            SET "Hours Worked Text" = %s, "Hours Worked" = %s
+            WHERE NAME = %s AND "DATE" = %s
+            """
+            cur.execute(update_query, (row['PTO'], hours_worked, selected_name, row['Date']))
+
         conn.commit()
+        st.sidebar.success("PTO entries successfully updated.")
+    except Exception as e:
+        conn.rollback()
+        st.sidebar.error(f"Error updating PTO entries: {str(e)}")
+        return
 
-    # Handle updates and insertions for remaining entries
-    for index, row in edited_pto_df.iterrows():
-        if pd.isnull(row['Date']):
-            with st.sidebar:
-                warning_message = st.empty()
-                warning_message.warning(f"Skipping invalid date in row {index}")
-                time.sleep(5)
-                warning_message.empty()
-            continue
-
-        if isinstance(row['Date'], str):
-            row['Date'] = pd.to_datetime(row['Date'])
-
-        if row['Date'].weekday() in [5, 6]:
-            continue
-
-        hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
-
-        update_query = f"""
-        UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-        SET "Hours Worked Text" = %s, "Hours Worked" = %s, "DATE" = %s
-        WHERE NAME = %s AND "DATE" = %s
-        """
-        cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
-    
-    conn.commit()
     cur.close()
-
-    with st.sidebar:
-        success_message = st.empty()
-        success_message.success("Changes saved successfully!")
-        time.sleep(5)
-        success_message.empty()
 
 # Establish connection to Snowflake and fetch distinct names
 conn = get_snowflake_connection()
