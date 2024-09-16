@@ -99,6 +99,10 @@ def fetch_pto_data(_conn, selected_name):
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
+    # Ensure both DataFrames have consistent indexing
+    edited_pto_df = edited_pto_df.reset_index(drop=True)
+    original_pto_df = original_pto_df.reset_index(drop=True)
+
     # Handle updates and insertions for remaining entries
     for index, row in edited_pto_df.iterrows():
         if pd.isnull(row['Date']):
@@ -165,15 +169,17 @@ with col1:
     reset_session_state_on_rep_change(selected_name)
 
     if selected_name != '':
-        day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type')
+        day_type = st.radio('Select Day Type', ['Full Day', 'Half Day'], key='day_type', label_visibility="collapsed")
         default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
         refresh_value = timedelta(days=1)
 
-        date_range_string = date_range_picker(picker_type=PickerType.date,
-                                              start=default_start, end=default_end,
-                                              key='date_range_picker',
-                                              refresh_button={'is_show': False, 'button_name': 'Refresh Last 1 Days',
-                                                              'refresh_value': refresh_value})
+        date_range_string = date_range_picker(
+            picker_type=PickerType.date,
+            start=default_start, 
+            end=default_end,
+            key='date_range_picker',
+            refresh_button={'is_show': False, 'button_name': 'Refresh Last 1 Days', 'refresh_value': refresh_value}
+        )
 
         if date_range_string:
             start_date, end_date = date_range_string
