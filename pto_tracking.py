@@ -139,7 +139,9 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
 
     # Check for weekend dates
     if check_for_weekend_dates(edited_pto_df):
-        st.sidebar.error("You cannot select a date that falls on a weekend (Sat, Sun).")
+        error_message = st.sidebar.error("You cannot select a date that falls on a weekend (Sat, Sun).")
+        time.sleep(5)
+        error_message.empty()
         return False  # Prevent saving changes if weekend dates are found
 
     if not changed_rows_df.empty:
@@ -225,10 +227,11 @@ main_success_message = st.empty()
 
 with col1:
     selected_name = st.selectbox(
-        'Select a Sales Rep', 
+        '',  # Removed 'Select Sales Rep' label
         names, 
         key='select_rep', 
-        format_func=lambda x: 'Select Sales Rep' if x == '' else x
+        format_func=lambda x: 'Select Sales Rep' if x == '' else x,
+        label_visibility='collapsed'  # Hides the label
     )
 
     reset_session_state_on_rep_change(selected_name)
@@ -293,7 +296,8 @@ with col1:
         else:
             pto_data = st.session_state['pto_data']
 
-        filter_type = st.sidebar.radio('Filter', ('Recent', 'All'), key='filter_type', index=0)
+        # Removed 'Filter' header but kept the radio buttons
+        filter_type = st.sidebar.radio('', ('Recent', 'All'), key='filter_type', index=0)
 
         filtered_pto_data = filter_pto_data(pto_data, filter_type)
 
