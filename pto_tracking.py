@@ -113,13 +113,34 @@ def filter_pto_data(pto_data, filter_type):
 def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
-    # Iterate over the edited DataFrame rows
+    # Check for existing duplicate dates in Snowflake
+    existing_dates_query = """
+    SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+    WHERE NAME = %s
+    """
+    cur.execute(existing_dates_query, (selected_name,))
+    existing_dates = [row[0] for row in cur.fetchall()]
+
+    duplicate_dates = []
+    
+    for idx, edited_row in edited_pto_df.iterrows():
+        if edited_row["Date"] in existing_dates:
+            duplicate_dates.append(edited_row["Date"])
+
+    if duplicate_dates:
+        duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
+        with st.sidebar:
+            error_message = st.empty()
+            error_message.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+        time.sleep(5)
+        error_message.empty()
+        return  # Prevent saving if duplicates are found
+
+    # Iterate over the edited DataFrame rows and handle inserts/updates
     for idx, edited_row in edited_pto_df.iterrows():
         original_row = original_pto_df.loc[idx] if idx in original_pto_df.index else None
 
-        # Check if row exists in original data (update or insert logic)
         if original_row is not None:
-            # If the Date or PTO value has changed, update the record
             if edited_row["Date"] != original_row["Date"] or edited_row["PTO"] != original_row["PTO"]:
                 update_query = """
                 UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
@@ -128,21 +149,11 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
                 """
                 cur.execute(update_query, (edited_row["Date"], edited_row["PTO"], selected_name, original_row["Date"]))
         else:
-            # If the row is new, insert it
             insert_query = """
             INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "DATE", "Hours Worked Text")
             VALUES (%s, %s, %s)
             """
             cur.execute(insert_query, (selected_name, edited_row["Date"], edited_row["PTO"]))
-
-    # Check for rows in original DataFrame that are not in edited DataFrame (delete logic)
-    for idx, original_row in original_pto_df.iterrows():
-        if idx not in edited_pto_df.index:
-            delete_query = """
-            DELETE FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-            WHERE NAME = %s AND "DATE" = %s
-            """
-            cur.execute(delete_query, (selected_name, original_row["Date"]))
 
     conn.commit()
     cur.close()
