@@ -95,13 +95,9 @@ def fetch_pto_data(_conn, selected_name):
     cur.execute(query, (selected_name,))
     return cur.fetchall()
 
-# Debugging step: Verify data fetched from Snowflake
-def debug_snowflake_data(pto_data):
-    if not pto_data:
-        st.error("No PTO data found for the selected rep.")
-    else:
-        st.write(f"Fetched {len(pto_data)} rows from Snowflake.")
-        st.write("Sample Data:", pto_data[:10])  # Show the first 10 rows for verification
+# Function to refresh the PTO data after changes
+def refresh_pto_data(conn, selected_name):
+    return fetch_pto_data(conn, selected_name)
 
 # Callback function to save changes with duplicate check only for new entries
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
@@ -201,8 +197,10 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         time.sleep(5)
         success_message.empty()
 
-    # Fetch updated PTO data after saving changes
-    st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
+    # Refresh PTO data after saving changes
+    pto_data = refresh_pto_data(conn, selected_name)
+    st.session_state['pto_data'] = pto_data  # Update session state with refreshed data
+    return pto_data
 
 # Establish connection to Snowflake and fetch distinct names
 conn = get_snowflake_connection()
@@ -285,10 +283,8 @@ with col1:
                     st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
 
     if selected_name != '':
+        # Use session state to hold PTO data
         pto_data = st.session_state['pto_data']
-
-        # Debugging fetched data from Snowflake
-        debug_snowflake_data(pto_data)
 
         if pto_data:
             pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
@@ -322,9 +318,12 @@ with col1:
                     hide_index=True
                 )
 
-                st.button(
+                if st.button(
                     "Save Changes", 
                     key='save_changes_button', 
                     on_click=save_changes, 
                     args=(edited_pto_df, original_pto_df, selected_name, conn)
-                )
+                ):
+                    # Immediately update the data editor with the new data after saving changes
+                    st.session_state['pto_data'] = refresh_pto_data(conn, selected_name)
+                    pto_data = st.session_state['pto_data']
