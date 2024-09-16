@@ -75,10 +75,11 @@ def get_snowflake_connection():
         schema='PUBLIC'
     )
 
-# Reconnect to Snowflake if the token has expired
+# Reconnect to Snowflake if the token has expired by running a simple query
 def reconnect_snowflake(conn):
     try:
-        conn.ping()  # Check if connection is active
+        cur = conn.cursor()
+        cur.execute("SELECT 1")  # Execute a simple query to test the connection
     except ProgrammingError as e:
         if e.errno == 390114:  # Authentication token has expired
             st.warning("Reconnecting to Snowflake due to expired session...")
