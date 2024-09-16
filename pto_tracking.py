@@ -274,11 +274,10 @@ with col1:
             original_pto_df = pto_df.copy()
 
             st.write("Edit PTO Entries:")
-            # Ensure pagination is not enabled by explicitly setting pagination=False
+            # Show the Data Editor with no pagination argument
             edited_pto_df = st.data_editor(
                 pto_df,
                 num_rows="dynamic",
-                pagination=False,  # Disable pagination to show all rows
                 column_config={
                     "Date": st.column_config.Column(label="Date", width=160),
                     "PTO": st.column_config.SelectboxColumn(
