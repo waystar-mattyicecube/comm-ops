@@ -139,7 +139,7 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
 
     # Check for weekend dates
     if check_for_weekend_dates(edited_pto_df):
-        error_message = st.sidebar.error("You cannot select a date that falls on a weekend (Sat, Sun).")
+        error_message = st.sidebar.error("PTO cannot occur on weekends. Please revise your entry.")
         time.sleep(5)
         error_message.empty()
         return False  # Prevent saving changes if weekend dates are found
