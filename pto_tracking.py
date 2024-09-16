@@ -219,6 +219,11 @@ with col1:
         format_func=lambda x: 'Select Sales Rep' if x == '' else x
     )
 
+    # Check if the selected name has changed, and reset session state
+    if 'last_selected_name' not in st.session_state or st.session_state['last_selected_name'] != selected_name:
+        st.session_state['last_selected_name'] = selected_name
+        st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
+
     if selected_name != '':
         day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type')
         default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
@@ -280,9 +285,6 @@ with col1:
                     st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
 
     if selected_name != '':
-        if 'pto_data' not in st.session_state:
-            st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
-
         pto_data = st.session_state['pto_data']
 
         # Debugging fetched data from Snowflake
