@@ -99,6 +99,10 @@ def fetch_pto_data(_conn, selected_name):
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
+    # Reset indices to ensure alignment when comparing rows
+    edited_pto_df.reset_index(drop=True, inplace=True)
+    original_pto_df.reset_index(drop=True, inplace=True)
+
     # Handle updates and insertions for remaining entries
     for index, row in edited_pto_df.iterrows():
         if pd.isnull(row['Date']):
