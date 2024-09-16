@@ -161,20 +161,22 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
     for idx, edited_row in edited_pto_df.iterrows():
         original_row = original_pto_df.loc[idx] if idx in original_pto_df.index else None
 
+        hours_worked = 0.5 if edited_row["PTO"] == 'Half Day' else 0.0  # Set Hours Worked
+
         if original_row is not None:
             if edited_row["Date"] != original_row["Date"] or edited_row["PTO"] != original_row["PTO"]:
                 update_query = """
                 UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-                SET "DATE" = %s, "Hours Worked Text" = %s
+                SET "DATE" = %s, "Hours Worked Text" = %s, "Hours Worked" = %s
                 WHERE NAME = %s AND "DATE" = %s
                 """
-                cur.execute(update_query, (edited_row["Date"], edited_row["PTO"], selected_name, original_row["Date"]))
+                cur.execute(update_query, (edited_row["Date"], edited_row["PTO"], hours_worked, selected_name, original_row["Date"]))
         else:
             insert_query = """
-            INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "DATE", "Hours Worked Text")
-            VALUES (%s, %s, %s)
+            INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "DATE", "Hours Worked Text", "Hours Worked")
+            VALUES (%s, %s, %s, %s)
             """
-            cur.execute(insert_query, (selected_name, edited_row["Date"], edited_row["PTO"]))
+            cur.execute(insert_query, (selected_name, edited_row["Date"], edited_row["PTO"], hours_worked))
 
     conn.commit()
     cur.close()
