@@ -201,6 +201,9 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         time.sleep(5)
         success_message.empty()
 
+    # Fetch updated PTO data after saving changes
+    st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
+
 # Establish connection to Snowflake and fetch distinct names
 conn = get_snowflake_connection()
 names = fetch_distinct_names(conn)
@@ -273,8 +276,14 @@ with col1:
                     time.sleep(5)
                     success_message.empty()
 
+                    # Fetch updated PTO data after submission
+                    st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
+
     if selected_name != '':
-        pto_data = fetch_pto_data(conn, selected_name)
+        if 'pto_data' not in st.session_state:
+            st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
+
+        pto_data = st.session_state['pto_data']
 
         # Debugging fetched data from Snowflake
         debug_snowflake_data(pto_data)
