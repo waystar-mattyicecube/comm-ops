@@ -247,19 +247,11 @@ filtered_pto_df = pd.DataFrame(filtered_pto_data, columns=["Date", "PTO"])
 # Display data editor
 with st.sidebar:
     st.header("Data Editor")
+    
+    # Data editor for filtered PTO data
     edited_pto_df = st.data_editor(
         filtered_pto_df,
-        use_container_width=True,
-        column_config={
-            "Date": {
-                "formatter": lambda x: x.strftime('%Y-%m-%d'),
-                "editor": st.date_input,
-            },
-            "PTO": {
-                "editor": st.selectbox,
-                "options": ['Full Day', 'Half Day']
-            }
-        }
+        use_container_width=True
     )
 
     # Save changes button
