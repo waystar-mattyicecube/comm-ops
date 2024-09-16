@@ -194,6 +194,17 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
 
     return True  # Return True if the changes were saved successfully
 
+# Callback function to save data when the "Save Changes" button is clicked
+def on_save_changes_callback(selected_name, edited_pto_df, original_pto_df, conn):
+    success = save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn)
+    # Show success message only if the changes were successful
+    if success:
+        with st.sidebar:
+            success_message = st.empty()
+            success_message.success("Changes saved successfully!")
+            time.sleep(3)
+            success_message.empty()
+
 # Reset session state when a new sales rep is selected
 def reset_session_state_on_rep_change(selected_name):
     # If there's a change in the selected sales rep, reset the session state to load new data
@@ -305,7 +316,7 @@ with col1:
 
         original_pto_df = edited_pto_df.copy()
 
-        # Render the data editor in the sidebar (only once, and update it on changes)
+        # Render the data editor in the sidebar and add the callback for save button
         with st.sidebar:
             st.write("Edit PTO Entries:")
             edited_pto_df = st.data_editor(
@@ -318,17 +329,9 @@ with col1:
                     ),
                 },
                 hide_index=True,
-                key='data_editor_sidebar'
+                key='data_editor_sidebar',
             )
 
-        # Save changes button to save edits
-        if st.sidebar.button("Save Changes", key='save_changes_button'):
-            success = save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn)
-
-            # Show success message only if the changes were successful
-            if success:
-                with st.sidebar:
-                    success_message = st.empty()
-                    success_message.success("Changes saved successfully!")
-                    time.sleep(3)
-                    success_message.empty()
+        # Save changes button using callback
+        st.sidebar.button("Save Changes", key='save_changes_button', on_click=on_save_changes_callback, 
+                          args=(selected_name, edited_pto_df, original_pto_df, conn))
