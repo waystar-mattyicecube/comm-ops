@@ -113,33 +113,36 @@ def filter_pto_data(pto_data, filter_type):
 def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
-    # Check for existing duplicate dates in Snowflake
-    existing_dates_query = """
-    SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-    WHERE NAME = %s
-    """
-    cur.execute(existing_dates_query, (selected_name,))
-    existing_dates = [row[0] for row in cur.fetchall()]
-
-    duplicate_dates = []
+    # Identify rows that were changed or added
+    changed_data = edited_pto_df.compare(original_pto_df)
     
-    for idx, edited_row in edited_pto_df.iterrows():
-        if edited_row["Date"] in existing_dates:
-            duplicate_dates.append(edited_row["Date"])
+    # Extract only the new or modified dates
+    changed_dates = edited_pto_df.loc[changed_data.index, 'Date'].tolist()
 
-    if duplicate_dates:
-        duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
-        with st.sidebar:
-            error_message = st.empty()
-            error_message.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
-        time.sleep(5)
-        error_message.empty()
-        return  # Prevent saving if duplicates are found
+    # Check for existing duplicate dates in Snowflake
+    if changed_dates:
+        check_existing_dates_query = """
+        SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+        WHERE NAME = %s AND "DATE" IN (%s)
+        """ % (selected_name, ','.join(['%s'] * len(changed_dates)))
 
-    # Iterate over the edited DataFrame rows and handle inserts/updates
+        cur.execute(check_existing_dates_query, (selected_name, *changed_dates))
+        duplicate_dates = [row[0] for row in cur.fetchall()]
+
+        if duplicate_dates:
+            duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
+            with st.sidebar:
+                error_message = st.empty()
+                error_message.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+            time.sleep(5)
+            error_message.empty()
+            return  # Prevent saving if duplicates are found
+
+    # Proceed with saving (inserts, updates, deletes)
     for idx, edited_row in edited_pto_df.iterrows():
         original_row = original_pto_df.loc[idx] if idx in original_pto_df.index else None
 
+        # Update if row exists, insert if new
         if original_row is not None:
             if edited_row["Date"] != original_row["Date"] or edited_row["PTO"] != original_row["PTO"]:
                 update_query = """
