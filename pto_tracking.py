@@ -150,7 +150,7 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
                 error_message.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
             time.sleep(5)
             error_message.empty()
-            return  # Prevent saving if duplicates are found
+            return  # Prevent further execution if duplicates are found
 
     # Detect deleted rows
     deleted_rows_df = original_pto_df.loc[~original_pto_df.index.isin(edited_pto_df.index)]
@@ -321,6 +321,7 @@ with col1:
         if st.sidebar.button("Save Changes", key='save_changes_button'):
             save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn)
 
+            # Show success message only if the changes were successful
             with st.sidebar:
                 success_message = st.empty()
                 success_message.success("Changes saved successfully!")
