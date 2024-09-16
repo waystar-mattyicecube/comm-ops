@@ -2,7 +2,6 @@ import streamlit as st
 from datetime import datetime, timedelta
 from streamlit_date_picker import date_range_picker, PickerType
 import snowflake.connector
-import time
 import pandas as pd
 
 # Logo URL
@@ -15,49 +14,6 @@ st.markdown(
         <img src="{logo_url}" alt="Company Logo" style="width:30px; margin-right:10px;">
         <h1 style="display: inline;">Sales PTO Tracking</h1>
     </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# Inject custom CSS for the radio button and submit button styling
-st.markdown(
-    """
-    <style>
-    div[role="radiogroup"] > label > div:first-of-type {
-        background-color: #0056b3 !important;
-    }
-    div[role="radiogroup"] > label:hover > div:first-of-type {
-        background-color: #0056b3 !important;
-    }
-    div[role="radiogroup"] > label > div:first-of-type > div[aria-checked="true"] {
-        border: 2px solid #0056b3 !important;
-    }
-    .stButton > button {
-        background-color: #0056b3;
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        font-size: 1rem;
-        border-radius: 0.25rem;
-        transition: background-color 0.3s ease, color 0.3s ease, border 0.3s ease;
-    }
-    .stButton > button:hover {
-        background-color: white;
-        color: #0056b3;
-        border: 2px solid #0056b3;
-    }
-    .stButton > button:active {
-        background-color: #0056b3 !important;
-        color: white !important;
-        border: none !important;
-    }
-    .stButton > button:focus {
-        background-color: #0056b3 !important;
-        color: white !important;
-        border: none !important;
-        outline: none !important;
-    }
-    </style>
     """,
     unsafe_allow_html=True
 )
@@ -94,7 +50,6 @@ def fetch_pto_data(_conn, selected_name):
     cur.execute(query, (selected_name,))
     return cur.fetchall()
 
-# Callback function to save changes with duplicate check only for new entries
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     if conn is None:
         with st.sidebar:
@@ -275,7 +230,7 @@ with col1:
             pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
 
             # Convert 'Date' column to datetime type to avoid 'dt' accessor issues
-            pto_df['Date'] = pd.to_datetime(pto_df['Date'], errors='coerce').dt.date
+            pto_df['Date'] = pd.to_datetime(pto_df['Date'], errors='coerce')
 
             original_pto_df = pto_df.copy()
 
@@ -288,16 +243,23 @@ with col1:
 
                 filter_option = st.radio("", ["All", "Recent"], index=1, key="filter_option")
 
+                # Filter logic based on selected option
                 if filter_option == "Recent":
-                    pto_df = pto_df[
-                        (pto_df['Date'] >= three_months_ago) |
-                        (pto_df['Date'] <= six_months_ahead) |
-                        (pd.to_datetime(pto_df['Date']).dt.year == next_year)
-                    ]
+                    # Filter to show only last 3 months, next 6 months, or next year
+                    recent_filter = (
+                        (pto_df['Date'] >= pd.to_datetime(three_months_ago)) |
+                        (pto_df['Date'] <= pd.to_datetime(six_months_ahead)) |
+                        (pto_df['Date'].dt.year == next_year)
+                    )
+                    pto_df = pto_df[recent_filter]
+                elif filter_option == "All":
+                    pto_df = original_pto_df.copy()
 
+                # Sort the data by Date
                 pto_df = pto_df.reset_index(drop=True)
                 pto_df = pto_df.sort_values(by='Date', ascending=False)
 
+                # Display the filtered data for editing
                 st.write("Edit PTO Entries:")
                 edited_pto_df = st.data_editor(
                     pto_df,
