@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from streamlit_date_picker import date_range_picker, PickerType
 import snowflake.connector
 import pandas as pd
-import time
 
 # Logo URL
 logo_url = "https://companieslogo.com/img/orig/WAY-3301bb15.png?t=1717743657"
@@ -49,13 +48,13 @@ st.markdown(
     .stButton > button:active {
         background-color: #0056b3 !important;
         color: white !important;
-        border: none !important.
+        border: none !important;
     }
     .stButton > button:focus {
         background-color: #0056b3 !important;
         color: white !important;
         border: none !important;
-        outline: none !important.
+        outline: none !important;
     }
     </style>
     """,
@@ -85,6 +84,7 @@ def fetch_distinct_names(_conn):
     return names
 
 # Fetch PTO data from Snowflake
+@st.cache_data(show_spinner=False)
 def fetch_pto_data(_conn, selected_name):
     cur = _conn.cursor()
     query = f"""
@@ -98,16 +98,19 @@ def fetch_pto_data(_conn, selected_name):
 
 # Function to filter PTO data based on 'Recent' or 'All' selection
 def filter_pto_data(pto_data, filter_type):
-    today = datetime.now().date()
-    one_year_ago = today - timedelta(days=365)
-    one_year_from_now = today + timedelta(days=365)
+    pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
+    pto_df['Date'] = pd.to_datetime(pto_df['Date'])
+
+    today = pd.Timestamp.now().normalize()
+    one_year_ago = today - pd.DateOffset(years=1)
+    one_year_from_now = today + pd.DateOffset(years=1)
 
     if filter_type == 'Recent':
-        filtered_data = [row for row in pto_data if (one_year_ago <= row[0] <= one_year_from_now)]
+        filtered_df = pto_df[(pto_df['Date'] >= one_year_ago) & (pto_df['Date'] <= one_year_from_now)]
     else:
-        filtered_data = pto_data
+        filtered_df = pto_df
 
-    return filtered_data
+    return filtered_df
 
 # Function to detect changes for insert/update
 def get_changed_rows(edited_pto_df, original_pto_df):
@@ -140,8 +143,7 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
     # Check for weekend dates
     if check_for_weekend_dates(edited_pto_df):
         error_message = st.sidebar.error("PTO cannot occur on weekends. Please revise your entry.")
-        time.sleep(5)
-        error_message.empty()
+        st.experimental_rerun()  # Refresh page after displaying error message
         return False  # Prevent saving changes if weekend dates are found
 
     if not changed_rows_df.empty:
@@ -214,112 +216,76 @@ def reset_session_state_on_rep_change(selected_name):
         st.session_state['last_selected_rep'] = selected_name
         st.session_state['pto_data'] = None  # Reset to force refresh
 
-# Establish connection to Snowflake and fetch names
+# Establish connection
 conn = get_snowflake_connection()
+
+# Sidebar filters
+st.sidebar.title('Filters')
+
+# Radio buttons for 'Recent' or 'All'
+filter_type = st.sidebar.radio('Select Filter', ('Recent', 'All'), index=0)
+
+# Fetch distinct names for the sales rep dropdown
 names = fetch_distinct_names(conn)
-names.insert(0, '')  # Placeholder for selectbox
 
-col1, spacer, col2 = st.columns([8, 0.1, 1])
+# Sales rep dropdown
+selected_name = st.sidebar.selectbox('Select Sales Rep', names)
 
-# Main screen error/success placeholders
-main_error_message = st.empty()
-main_success_message = st.empty()
+# Reset session state if sales rep changes
+reset_session_state_on_rep_change(selected_name)
 
-with col1:
-    selected_name = st.selectbox(
-        '',  # Removed 'Select Sales Rep' label
-        names, 
-        key='select_rep', 
-        format_func=lambda x: 'Select Sales Rep' if x == '' else x,
-        label_visibility='collapsed'  # Hides the label
+# Display existing PTO data
+if 'pto_data' not in st.session_state or st.session_state['pto_data'] is None:
+    st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
+
+pto_data = st.session_state['pto_data']
+
+# Filter PTO data based on selection
+filtered_pto_data = filter_pto_data(pto_data, filter_type)
+filtered_pto_df = pd.DataFrame(filtered_pto_data, columns=["Date", "PTO"])
+
+# Display data editor
+with st.sidebar:
+    st.header("Data Editor")
+    edited_pto_df = st.data_editor(
+        filtered_pto_df,
+        use_container_width=True,
+        column_config={
+            "Date": st.column_config.DateInput("Date"),
+            "PTO": st.column_config.Selectbox("PTO", options=['Full Day', 'Half Day'])
+        }
     )
 
-    reset_session_state_on_rep_change(selected_name)
+    # Save changes button
+    if st.button("Save Changes"):
+        on_save_changes(selected_name, edited_pto_df, filtered_pto_df, conn)
 
-    if selected_name != '':
-        day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type', label_visibility='collapsed')
-        default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
+# Display error message for weekend dates
+if 'error_message' in st.session_state and st.session_state['error_message']:
+    st.write(st.session_state['error_message'])
+    st.session_state['error_message'] = None  # Clear message after displaying
 
-        # Removed `refresh_value` to fix the KeyError issue
-        date_range_string = date_range_picker(
-            picker_type=PickerType.date,
-            start=default_start,
-            end=default_end,
-            key='date_range_picker',
-        )
+# Display PTO data
+st.write("### PTO Data")
+st.dataframe(filtered_pto_df, use_container_width=True)
 
-        if date_range_string:
-            start_date, end_date = date_range_string
-            start_date = datetime.strptime(start_date, '%Y-%m-%d') if isinstance(start_date, str) else start_date
-            end_date = datetime.strptime(end_date, '%Y-%m-%d') if isinstance(end_date, str) else end_date
+# Handle date range picker and success/error messages
+with st.container():
+    st.write("### Date Range Picker")
+    start_date, end_date = date_range_picker(
+        "Select Date Range",
+        default_start_date=datetime.now() - timedelta(days=30),
+        default_end_date=datetime.now(),
+        picker_type=PickerType.RANGE
+    )
+    
+    if start_date and end_date:
+        st.write(f"Selected Date Range: {start_date} to {end_date}")
 
-            formatted_start_date = start_date.strftime('%b %d, %Y')
-            formatted_end_date = end_date.strftime('%b %d, %Y')
+    # Display success message for date picker
+    if 'date_picker_message' in st.session_state:
+        st.success(st.session_state['date_picker_message'])
+        st.session_state['date_picker_message'] = None
 
-            st.write(f"{formatted_start_date} - {formatted_end_date}")
-
-            if st.button('Submit', key='submit_button'):
-                cur = conn.cursor()
-                check_query = f"""
-                SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-                WHERE NAME = %s AND "DATE" BETWEEN %s AND %s
-                """
-                cur.execute(check_query, (selected_name, start_date, end_date))
-                existing_dates = [row[0] for row in cur.fetchall()]
-
-                if existing_dates:
-                    existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
-                    main_error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
-                else:
-                    current_date = start_date
-                    hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
-                    while current_date <= end_date:
-                        if current_date.weekday() < 5:  # Ignore weekends
-                            insert_query = f"""
-                            INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "Hours Worked Text", "Hours Worked", "DATE")
-                            VALUES (%s, %s, %s, %s)
-                            """
-                            cur.execute(insert_query, (selected_name, hours_worked_text, 0 if day_type == 'Full Day' else 0.5, current_date))
-                        current_date += timedelta(days=1)
-                    conn.commit()
-
-                    main_success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date}.")
-                    time.sleep(5)
-                    main_success_message.empty()
-
-                    st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
-
-    if selected_name != '':
-        if 'pto_data' not in st.session_state or st.session_state['pto_data'] is None:
-            pto_data = fetch_pto_data(conn, selected_name)
-            st.session_state['pto_data'] = pto_data
-        else:
-            pto_data = st.session_state['pto_data']
-
-        # Removed 'Filter' header but kept the radio buttons
-        filter_type = st.sidebar.radio('', ('Recent', 'All'), key='filter_type', index=0)
-
-        filtered_pto_data = filter_pto_data(pto_data, filter_type)
-
-        edited_pto_df = pd.DataFrame(filtered_pto_data, columns=["Date", "PTO"])
-        edited_pto_df['Date'] = pd.to_datetime(edited_pto_df['Date']).dt.date
-
-        original_pto_df = edited_pto_df.copy()
-
-        with st.sidebar:
-            st.write("Edit PTO Entries:")
-            edited_pto_df = st.data_editor(
-                edited_pto_df,
-                num_rows="dynamic",
-                column_config={
-                    "Date": st.column_config.Column(label="Date", width=160),
-                    "PTO": st.column_config.SelectboxColumn(
-                        label="PTO", options=["Full Day", "Half Day"], width=110, required=True
-                    ),
-                },
-                hide_index=True,
-                key='data_editor_sidebar',
-            )
-
-        st.sidebar.button("Save Changes", key='save_changes_button', on_click=on_save_changes,
-                          args=(selected_name, edited_pto_df, original_pto_df, conn))
+# Close the Snowflake connection
+conn.close()
