@@ -49,7 +49,7 @@ st.markdown(
     .stButton > button:active {
         background-color: #0056b3 !important;
         color: white !important;
-        border: none !important;
+        border: none !important.
     }
     .stButton > button:focus {
         background-color: #0056b3 !important;
@@ -95,6 +95,19 @@ def fetch_pto_data(_conn, selected_name):
     """
     cur.execute(query, (selected_name,))
     return cur.fetchall()
+
+# Function to filter data based on the 'Recent' or 'All' selection
+def filter_pto_data(pto_data, filter_type):
+    today = datetime.now().date()
+    three_months_ago = today - timedelta(days=90)
+    one_year_from_now = today + timedelta(days=365)
+
+    if filter_type == 'Recent':
+        filtered_data = [row for row in pto_data if (three_months_ago <= row[0] <= one_year_from_now)]
+    else:
+        filtered_data = pto_data
+
+    return filtered_data
 
 # Function to insert, update, and delete records based on the data editor's changes
 def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn):
@@ -228,7 +241,19 @@ with col1:
         else:
             pto_data = st.session_state['pto_data']
 
-        edited_pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
+        # Add radio buttons for filtering
+        filter_type = st.sidebar.radio(
+            "Filter PTO Entries",
+            ('Recent', 'All'),
+            key='filter_type',
+            index=0  # Default to 'Recent'
+        )
+
+        # Filter the data based on the radio button selection
+        filtered_pto_data = filter_pto_data(pto_data, filter_type)
+
+        # Prepare the filtered data for display in the editor
+        edited_pto_df = pd.DataFrame(filtered_pto_data, columns=["Date", "PTO"])
         edited_pto_df['Date'] = pd.to_datetime(edited_pto_df['Date']).dt.date
 
         original_pto_df = edited_pto_df.copy()
