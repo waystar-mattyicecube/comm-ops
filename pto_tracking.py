@@ -87,12 +87,21 @@ def fetch_distinct_names(_conn):
 def fetch_pto_data(_conn, selected_name):
     cur = _conn.cursor()
     query = f"""
-    SELECT "DATE", "Hours Worked Text" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-    WHERE NAME = %s
+    SELECT "DATE", "Hours Worked Text" 
+    FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+    WHERE TRIM(NAME) = %s
     ORDER BY "DATE" DESC
     """
     cur.execute(query, (selected_name,))
     return cur.fetchall()
+
+# Debugging step: Verify data fetched from Snowflake
+def debug_snowflake_data(pto_data):
+    if not pto_data:
+        st.error("No PTO data found for the selected rep.")
+    else:
+        st.write(f"Fetched {len(pto_data)} rows from Snowflake.")
+        st.write("Sample Data:", pto_data[:10])  # Show the first 10 rows for verification
 
 # Callback function to save changes with duplicate check only for new entries
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
@@ -140,8 +149,8 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
             with st.sidebar:
                 error_message = st.empty()
                 error_message.error(f"Cannot save. The following PTO dates already exist for {selected_name}: {conflicting_dates_str}.")
-                time.sleep(5)  # Display the error for 5 seconds
-                error_message.empty()  # Clear the message after 5 seconds
+            time.sleep(5)  # Display the error for 5 seconds
+            error_message.empty()  # Clear the message after 5 seconds
             return  # Prevent submission if duplicates are found
 
     # Detect deleted rows
@@ -266,6 +275,9 @@ with col1:
 
     if selected_name != '':
         pto_data = fetch_pto_data(conn, selected_name)
+
+        # Debugging fetched data from Snowflake
+        debug_snowflake_data(pto_data)
 
         if pto_data:
             pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
