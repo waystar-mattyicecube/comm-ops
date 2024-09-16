@@ -19,7 +19,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Inject custom CSS for the radio button and submit button styling
+# Inject custom CSS for radio button and submit button styling
 st.markdown(
     """
     <style>
@@ -252,9 +252,9 @@ with col1:
                 key='data_editor_sidebar'
             )
 
+        # Store the modified data back to session state when editing
+        st.session_state['pto_data'] = edited_pto_df
+
         # Save changes button to save edits
-        if st.sidebar.button(
-            "Save Changes", 
-            key='save_changes_button'
-        ):
+        if st.sidebar.button("Save Changes", key='save_changes_button'):
             save_changes(edited_pto_df, original_pto_df, selected_name, conn)
