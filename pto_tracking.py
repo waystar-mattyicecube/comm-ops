@@ -213,10 +213,10 @@ def on_save_changes(selected_name, edited_pto_df, original_pto_df, conn):
 # Reset session state when the sales rep is selected
 def reset_session_state_on_rep_change(selected_name):
     if 'last_selected_rep' not in st.session_state or st.session_state['last_selected_rep'] != selected_name:
+        st.session_state['pto_data'] = None
         st.session_state['last_selected_rep'] = selected_name
-        st.session_state['pto_data'] = None  # Reset to force refresh
 
-# Establish connection
+# Main app logic
 conn = get_snowflake_connection()
 
 # Sidebar filters
@@ -251,8 +251,8 @@ with st.sidebar:
         filtered_pto_df,
         use_container_width=True,
         column_config={
-            "Date": st.column_config.DateInput("Date"),
-            "PTO": st.column_config.Selectbox("PTO", options=['Full Day', 'Half Day'])
+            "Date": st.date_input("Date"),
+            "PTO": st.selectbox("PTO", options=['Full Day', 'Half Day'])
         }
     )
 
