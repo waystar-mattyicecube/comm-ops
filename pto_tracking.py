@@ -19,7 +19,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Inject custom CSS for radio button and submit button styling
+# Inject custom CSS for the radio button and submit button styling
 st.markdown(
     """
     <style>
@@ -115,14 +115,16 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         if row['Date'].weekday() in [5, 6]:  # Skip weekends
             continue
 
-        hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
+        # Check if the row has changed
+        if not row.equals(original_pto_df.loc[index]):
+            hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
 
-        update_query = f"""
-        UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-        SET "Hours Worked Text" = %s, "Hours Worked" = %s, "DATE" = %s
-        WHERE NAME = %s AND "DATE" = %s
-        """
-        cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
+            update_query = f"""
+            UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+            SET "Hours Worked Text" = %s, "Hours Worked" = %s, "DATE" = %s
+            WHERE NAME = %s AND "DATE" = %s
+            """
+            cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
     
     conn.commit()
     cur.close()
@@ -252,9 +254,9 @@ with col1:
                 key='data_editor_sidebar'
             )
 
-        # Store the modified data back to session state when editing
-        st.session_state['pto_data'] = edited_pto_df
-
         # Save changes button to save edits
-        if st.sidebar.button("Save Changes", key='save_changes_button'):
+        if st.sidebar.button(
+            "Save Changes", 
+            key='save_changes_button'
+        ):
             save_changes(edited_pto_df, original_pto_df, selected_name, conn)
