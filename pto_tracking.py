@@ -62,7 +62,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Cache the Snowflake connection
+# Cache the Snowflake connection using @st.cache_resource to persist it throughout the app
 @st.cache_resource
 def get_snowflake_connection():
     return snowflake.connector.connect(
@@ -75,7 +75,7 @@ def get_snowflake_connection():
         client_session_keep_alive=True  # Keep the session alive to prevent token expiration
     )
 
-# Fetch distinct names from Snowflake
+# Cache the function that fetches distinct names from Snowflake using @st.cache_data
 @st.cache_data(show_spinner=False)
 def fetch_distinct_names(_conn):
     cur = _conn.cursor()
@@ -84,7 +84,8 @@ def fetch_distinct_names(_conn):
     names = [row[0] for row in cur.fetchall()]
     return names
 
-# Fetch PTO data from Snowflake without caching
+# Cache PTO data fetch from Snowflake using @st.cache_data
+@st.cache_data(show_spinner=False)
 def fetch_pto_data(_conn, selected_name):
     cur = _conn.cursor()
     query = f"""
@@ -96,7 +97,8 @@ def fetch_pto_data(_conn, selected_name):
     cur.execute(query, (selected_name,))
     return cur.fetchall()
 
-# Function to filter data based on the 'Recent' or 'All' selection
+# Cache the filtering function for PTO data using @st.cache_data
+@st.cache_data
 def filter_pto_data(pto_data, filter_type):
     today = datetime.now().date()
     three_months_ago = today - timedelta(days=90)
@@ -109,7 +111,7 @@ def filter_pto_data(pto_data, filter_type):
 
     return filtered_data
 
-# Function to compare edited and original data, and check for duplicates
+# No caching applied here as this function checks for changes in real-time
 def get_changed_rows(edited_pto_df, original_pto_df):
     changed_rows = []
     
@@ -125,7 +127,7 @@ def get_changed_rows(edited_pto_df, original_pto_df):
     
     return pd.DataFrame(changed_rows)
 
-# Function to insert, update, and delete records based on the data editor's changes
+# No caching is applied here, as this function modifies the Snowflake data
 def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
