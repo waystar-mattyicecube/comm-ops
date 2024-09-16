@@ -210,17 +210,26 @@ main_error_message = st.empty()
 main_success_message = st.empty()
 
 with col1:
-    selected_name = st.selectbox('', names, key='select_rep', format_func=lambda x: 'Select Sales Rep' if x == '' else x)
+    selected_name = st.selectbox(
+        'Select a Sales Rep', 
+        names, 
+        key='select_rep', 
+        format_func=lambda x: 'Select Sales Rep' if x == '' else x
+    )
 
     reset_session_state_on_rep_change(selected_name)
 
     if selected_name != '':
-        day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type')
+        day_type = st.radio('Day Type', ['Full Day', 'Half Day'], key='day_type')
         default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
-        refresh_value = timedelta(days=1)
 
-        date_range_string = date_range_picker(picker_type=PickerType.date, start=default_start, end=default_end,
-                                              key='date_range_picker', refresh_button={'is_show': False})
+        # Removed `refresh_value` to fix the KeyError issue
+        date_range_string = date_range_picker(
+            picker_type=PickerType.date,
+            start=default_start,
+            end=default_end,
+            key='date_range_picker',
+        )
 
         if date_range_string:
             start_date, end_date = date_range_string
@@ -270,7 +279,7 @@ with col1:
         else:
             pto_data = st.session_state['pto_data']
 
-        filter_type = st.sidebar.radio('', ('Recent', 'All'), key='filter_type', index=0)
+        filter_type = st.sidebar.radio('Filter', ('Recent', 'All'), key='filter_type', index=0)
 
         filtered_pto_data = filter_pto_data(pto_data, filter_type)
 
