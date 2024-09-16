@@ -103,7 +103,7 @@ def filter_pto_data(pto_data, filter_type):
     one_year_from_now = today + timedelta(days=365)
 
     if filter_type == 'Recent':
-        filtered_data = [row for row in pto_data if (three_months_ago <= row[0] <= one_year_from_now)]
+        filtered_data = [row for row in pto_data if (one_year_ago <= row[0] <= one_year_from_now)]
     else:
         filtered_data = pto_data
 
