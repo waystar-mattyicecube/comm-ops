@@ -174,16 +174,15 @@ with col1:
 
     if selected_name != '':
         day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type')
+        default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
         refresh_value = timedelta(days=1)
 
-        # Set date_range_picker to have no default dates (None for start and end)
         date_range_string = date_range_picker(picker_type=PickerType.date,
-                                              start=None, end=None,
+                                              start=default_start, end=default_end,
                                               key='date_range_picker',
                                               refresh_button={'is_show': False, 'button_name': 'Refresh Last 1 Days',
                                                               'refresh_value': refresh_value})
 
-        # Check if dates were selected
         if date_range_string:
             start_date, end_date = date_range_string
             start_date = datetime.strptime(start_date, '%Y-%m-%d') if isinstance(start_date, str) else start_date
@@ -233,8 +232,6 @@ with col1:
                     # Fetch updated PTO data and update the editor
                     new_pto_data = fetch_pto_data(conn, selected_name)
                     st.session_state['pto_data'] = new_pto_data
-        else:
-            st.write("Please select a date range.")
 
     if selected_name != '':
         # Fetch new PTO data if it's not already in session state or if a new rep is selected
