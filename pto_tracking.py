@@ -205,14 +205,14 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
 
 # Callback for saving changes in data editor
 def on_save_changes(selected_name, edited_pto_df, original_pto_df, conn):
-    success = save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn)
+    if save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn):
+        st.sidebar.success("Changes saved successfully.")
+    else:
+        st.sidebar.error("Failed to save changes.")
 
-    if success:
-        st.success("Changes saved successfully!")
-
-# Reset session state when the sales rep is selected
+# Handle session state for sales rep
 def reset_session_state_on_rep_change(selected_name):
-    if 'last_selected_rep' not in st.session_state or st.session_state['last_selected_rep'] != selected_name:
+    if 'last_selected_rep' in st.session_state and st.session_state['last_selected_rep'] != selected_name:
         st.session_state['pto_data'] = None
         st.session_state['last_selected_rep'] = selected_name
 
@@ -251,8 +251,14 @@ with st.sidebar:
         filtered_pto_df,
         use_container_width=True,
         column_config={
-            "Date": st.date_input("Date"),
-            "PTO": st.selectbox("PTO", options=['Full Day', 'Half Day'])
+            "Date": {
+                "formatter": lambda x: x.strftime('%Y-%m-%d'),
+                "editor": st.date_input,
+            },
+            "PTO": {
+                "editor": st.selectbox,
+                "options": ['Full Day', 'Half Day']
+            }
         }
     )
 
