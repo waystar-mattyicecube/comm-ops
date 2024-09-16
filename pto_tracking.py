@@ -71,7 +71,8 @@ def get_snowflake_connection():
         account='fna44578.east-us-2.azure',
         warehouse='COMPUTE_WH',
         database='STREAMLIT_APPS',
-        schema='PUBLIC'
+        schema='PUBLIC',
+        client_session_keep_alive=True  # Keep the session alive to prevent token expiration
     )
 
 # Fetch distinct names from Snowflake
