@@ -174,7 +174,7 @@ with col1:
 
     if selected_name != '':
         day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type')
-        default_start, default_end = None - timedelta(days=1), None
+        default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
         refresh_value = timedelta(days=1)
 
         date_range_string = date_range_picker(picker_type=PickerType.date,
