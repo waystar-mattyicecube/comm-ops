@@ -75,7 +75,7 @@ def get_snowflake_connection():
     )
 
 # Cache Snowflake query results and avoid hashing the connection object
-@st.cache_data
+@st.cache_data(show_spinner=False, suppress_st_warning=True)
 def fetch_distinct_names(_conn):
     cur = _conn.cursor()
     query = "SELECT DISTINCT NAME FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO"
@@ -83,7 +83,7 @@ def fetch_distinct_names(_conn):
     names = [row[0] for row in cur.fetchall()]
     return names
 
-@st.cache_data
+# Fetch PTO data without caching, to ensure fresh data after changes
 def fetch_pto_data(_conn, selected_name):
     cur = _conn.cursor()
     query = f"""
@@ -95,7 +95,7 @@ def fetch_pto_data(_conn, selected_name):
     cur.execute(query, (selected_name,))
     return cur.fetchall()
 
-# Function to refresh the PTO data after changes
+# Force refresh of the PTO data after changes
 def refresh_pto_data(conn, selected_name):
     return fetch_pto_data(conn, selected_name)
 
@@ -200,7 +200,9 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     # Refresh PTO data after saving changes
     pto_data = refresh_pto_data(conn, selected_name)
     st.session_state['pto_data'] = pto_data  # Update session state with refreshed data
-    return pto_data
+
+    # Trigger a full rerun of the app to update the UI
+    st.experimental_rerun()
 
 # Establish connection to Snowflake and fetch distinct names
 conn = get_snowflake_connection()
@@ -282,6 +284,9 @@ with col1:
                     # Fetch updated PTO data after submission
                     st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
 
+                    # Force a full rerun to reflect new data
+                    st.experimental_rerun()
+
     if selected_name != '':
         # Use session state to hold PTO data
         pto_data = st.session_state['pto_data']
@@ -324,6 +329,5 @@ with col1:
                     on_click=save_changes, 
                     args=(edited_pto_df, original_pto_df, selected_name, conn)
                 ):
-                    # Immediately update the data editor with the new data after saving changes
-                    st.session_state['pto_data'] = refresh_pto_data(conn, selected_name)
-                    pto_data = st.session_state['pto_data']
+                    # Force a rerun to immediately update the data editor with new data
+                    st.experimental_rerun()
