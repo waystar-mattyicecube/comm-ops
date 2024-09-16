@@ -75,7 +75,7 @@ def get_snowflake_connection():
     )
 
 # Cache Snowflake query results and avoid hashing the connection object
-@st.cache_data(show_spinner=False, suppress_st_warning=True)
+@st.cache_data(show_spinner=False)
 def fetch_distinct_names(_conn):
     cur = _conn.cursor()
     query = "SELECT DISTINCT NAME FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO"
