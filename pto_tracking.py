@@ -99,7 +99,7 @@ def fetch_pto_data(_conn, selected_name):
 # Function to filter PTO data based on 'Recent' or 'All' selection
 def filter_pto_data(pto_data, filter_type):
     today = datetime.now().date()
-    three_months_ago = today - timedelta(days=180)
+    three_months_ago = today - timedelta(days=90)
     one_year_from_now = today + timedelta(days=365)
 
     if filter_type == 'Recent':
@@ -123,12 +123,24 @@ def get_changed_rows(edited_pto_df, original_pto_df):
 
     return pd.DataFrame(changed_rows)
 
+# Function to check if any dates fall on a weekend
+def check_for_weekend_dates(edited_pto_df):
+    for date in edited_pto_df['Date']:
+        if date.weekday() >= 5:  # 5 is Saturday, 6 is Sunday
+            return True
+    return False
+
 # Function to insert, update, and delete records based on the data editor's changes
 def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
     # Detect changed rows
     changed_rows_df = get_changed_rows(edited_pto_df, original_pto_df)
+
+    # Check for weekend dates
+    if check_for_weekend_dates(edited_pto_df):
+        st.sidebar.error("You cannot select a date that falls on a weekend (Sat, Sun).")
+        return False  # Prevent saving changes if weekend dates are found
 
     if not changed_rows_df.empty:
         # Check for duplicate PTO dates in Snowflake
@@ -143,7 +155,7 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
 
         if duplicate_dates:
             duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
-            st.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+            st.sidebar.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
             return False  # Prevent further saving if duplicates exist
 
     # Detect deleted rows
