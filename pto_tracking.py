@@ -122,6 +122,8 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         SET "Hours Worked Text" = %s, "Hours Worked" = %s, "DATE" = %s
         WHERE NAME = %s AND "DATE" = %s
         """
+        # Add logging to verify what values are being passed to the query
+        st.write(f"Updating: PTO = {row['PTO']}, Hours Worked = {hours_worked}, Date = {row['Date']}")
         cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
     
     conn.commit()
@@ -136,6 +138,9 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         success_message.success("Changes saved successfully!")
         time.sleep(3)
         success_message.empty()
+
+    # Refresh the data editor with new data
+    st.rerun()
 
 # Reset session state when a new sales rep is selected
 def reset_session_state_on_rep_change(selected_name):
