@@ -62,7 +62,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Cache the Snowflake connection using @st.cache_resource to persist it throughout the app
+# Cache the Snowflake connection
 @st.cache_resource
 def get_snowflake_connection():
     return snowflake.connector.connect(
@@ -72,10 +72,10 @@ def get_snowflake_connection():
         warehouse='COMPUTE_WH',
         database='STREAMLIT_APPS',
         schema='PUBLIC',
-        client_session_keep_alive=True  # Keep the session alive to prevent token expiration
+        client_session_keep_alive=True
     )
 
-# Cache the function that fetches distinct names from Snowflake using @st.cache_data
+# Fetch distinct names from Snowflake
 @st.cache_data(show_spinner=False)
 def fetch_distinct_names(_conn):
     cur = _conn.cursor()
@@ -84,8 +84,7 @@ def fetch_distinct_names(_conn):
     names = [row[0] for row in cur.fetchall()]
     return names
 
-# Cache PTO data fetch from Snowflake using @st.cache_data
-@st.cache_data(show_spinner=False)
+# Fetch PTO data from Snowflake
 def fetch_pto_data(_conn, selected_name):
     cur = _conn.cursor()
     query = f"""
@@ -97,8 +96,7 @@ def fetch_pto_data(_conn, selected_name):
     cur.execute(query, (selected_name,))
     return cur.fetchall()
 
-# Cache the filtering function for PTO data using @st.cache_data
-@st.cache_data
+# Function to filter PTO data based on 'Recent' or 'All' selection
 def filter_pto_data(pto_data, filter_type):
     today = datetime.now().date()
     three_months_ago = today - timedelta(days=90)
@@ -111,31 +109,29 @@ def filter_pto_data(pto_data, filter_type):
 
     return filtered_data
 
-# No caching applied here as this function checks for changes in real-time
+# Function to detect changes for insert/update
 def get_changed_rows(edited_pto_df, original_pto_df):
     changed_rows = []
-    
+
     for idx, edited_row in edited_pto_df.iterrows():
-        # Check if row exists in original and if any changes are made
         if idx in original_pto_df.index:
             original_row = original_pto_df.loc[idx]
             if edited_row["Date"] != original_row["Date"] or edited_row["PTO"] != original_row["PTO"]:
                 changed_rows.append(edited_row)
         else:
-            # New row, needs to be checked
             changed_rows.append(edited_row)
-    
+
     return pd.DataFrame(changed_rows)
 
-# No caching is applied here, as this function modifies the Snowflake data
+# Function to insert, update, and delete records based on the data editor's changes
 def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
-    # Find changed rows (updated or new rows)
+    # Detect changed rows
     changed_rows_df = get_changed_rows(edited_pto_df, original_pto_df)
-    
+
     if not changed_rows_df.empty:
-        # Check for duplicates in Snowflake for only changed rows
+        # Check for duplicate PTO dates in Snowflake
         changed_dates = changed_rows_df['Date'].tolist()
         check_existing_dates_query = """
         SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
@@ -147,12 +143,8 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
 
         if duplicate_dates:
             duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
-            with st.sidebar:
-                error_message = st.empty()
-                error_message.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
-            time.sleep(5)
-            error_message.empty()
-            return False  # Return False if duplicate PTO dates exist
+            st.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+            return False  # Prevent further saving if duplicates exist
 
     # Detect deleted rows
     deleted_rows_df = original_pto_df.loc[~original_pto_df.index.isin(edited_pto_df.index)]
@@ -165,11 +157,10 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
         """
         cur.execute(delete_query, (selected_name, deleted_row["Date"]))
 
-    # Insert/update rows in Snowflake
+    # Insert or update rows in Snowflake
     for idx, edited_row in edited_pto_df.iterrows():
         original_row = original_pto_df.loc[idx] if idx in original_pto_df.index else None
 
-        # Update if row exists, insert if new
         if original_row is not None:
             if edited_row["Date"] != original_row["Date"] or edited_row["PTO"] != original_row["PTO"]:
                 update_query = """
@@ -188,50 +179,39 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
     conn.commit()
     cur.close()
 
-    # Re-fetch the updated PTO data after saving changes
+    # Refresh PTO data after saving changes
     updated_pto_data = fetch_pto_data(conn, selected_name)
-    st.session_state['pto_data'] = updated_pto_data  # Update the session state with the new data
+    st.session_state['pto_data'] = updated_pto_data
 
-    return True  # Return True if the changes were saved successfully
+    return True
 
-# Callback function to save data when the "Save Changes" button is clicked
-def on_save_changes_callback(selected_name, edited_pto_df, original_pto_df, conn):
+# Callback for saving changes in data editor
+def on_save_changes(selected_name, edited_pto_df, original_pto_df, conn):
     success = save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn)
-    # Show success message only if the changes were successful
-    if success:
-        with st.sidebar:
-            success_message = st.empty()
-            success_message.success("Changes saved successfully!")
-            time.sleep(3)
-            success_message.empty()
 
-# Reset session state when a new sales rep is selected
+    if success:
+        st.success("Changes saved successfully!")
+
+# Reset session state when the sales rep is selected
 def reset_session_state_on_rep_change(selected_name):
-    # If there's a change in the selected sales rep, reset the session state to load new data
     if 'last_selected_rep' not in st.session_state or st.session_state['last_selected_rep'] != selected_name:
         st.session_state['last_selected_rep'] = selected_name
-        st.session_state['pto_data'] = None  # Reset PTO data to force a refresh
+        st.session_state['pto_data'] = None  # Reset to force refresh
 
-# Establish connection to Snowflake and fetch distinct names
+# Establish connection to Snowflake and fetch names
 conn = get_snowflake_connection()
 names = fetch_distinct_names(conn)
-names.insert(0, '')  # Add a placeholder for the selectbox
+names.insert(0, '')  # Placeholder for selectbox
 
 col1, spacer, col2 = st.columns([8, 0.1, 1])
 
-# Create placeholders for displaying success/error messages for the date picker on the main screen
+# Main screen error/success placeholders
 main_error_message = st.empty()
 main_success_message = st.empty()
 
 with col1:
-    selected_name = st.selectbox(
-        '', 
-        names, 
-        key='select_rep', 
-        format_func=lambda x: 'Select Sales Rep' if x == '' else x
-    )
+    selected_name = st.selectbox('', names, key='select_rep', format_func=lambda x: 'Select Sales Rep' if x == '' else x)
 
-    # Reset session state if the user selects a new sales rep
     reset_session_state_on_rep_change(selected_name)
 
     if selected_name != '':
@@ -239,11 +219,8 @@ with col1:
         default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
         refresh_value = timedelta(days=1)
 
-        date_range_string = date_range_picker(picker_type=PickerType.date,
-                                              start=default_start, end=default_end,
-                                              key='date_range_picker',
-                                              refresh_button={'is_show': False, 'button_name': 'Refresh Last 1 Days',
-                                                              'refresh_value': refresh_value})
+        date_range_string = date_range_picker(picker_type=PickerType.date, start=default_start, end=default_end,
+                                              key='date_range_picker', refresh_button={'is_show': False})
 
         if date_range_string:
             start_date, end_date = date_range_string
@@ -256,67 +233,52 @@ with col1:
             st.write(f"{formatted_start_date} - {formatted_end_date}")
 
             if st.button('Submit', key='submit_button'):
+                cur = conn.cursor()
                 check_query = f"""
                 SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
                 WHERE NAME = %s AND "DATE" BETWEEN %s AND %s
                 """
-                cur = conn.cursor()
                 cur.execute(check_query, (selected_name, start_date, end_date))
                 existing_dates = [row[0] for row in cur.fetchall()]
 
                 if existing_dates:
                     existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
                     main_error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
-                    time.sleep(5)
-                    main_error_message.empty()
                 else:
-                    hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
-                    hours_worked = 0 if day_type == 'Full Day' else 0.5
                     current_date = start_date
+                    hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
                     while current_date <= end_date:
                         if current_date.weekday() < 5:  # Ignore weekends
                             insert_query = f"""
                             INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "Hours Worked Text", "Hours Worked", "DATE")
                             VALUES (%s, %s, %s, %s)
                             """
-                            cur.execute(insert_query, (selected_name, hours_worked_text, hours_worked, current_date))
+                            cur.execute(insert_query, (selected_name, hours_worked_text, 0 if day_type == 'Full Day' else 0.5, current_date))
                         current_date += timedelta(days=1)
                     conn.commit()
 
-                    main_success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date} (excluding weekends).")
+                    main_success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date}.")
                     time.sleep(5)
                     main_success_message.empty()
 
-                    # Fetch updated PTO data and update the editor
-                    new_pto_data = fetch_pto_data(conn, selected_name)
-                    st.session_state['pto_data'] = new_pto_data
+                    st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
 
     if selected_name != '':
-        # Fetch new PTO data if it's not already in session state or if a new rep is selected
         if 'pto_data' not in st.session_state or st.session_state['pto_data'] is None:
             pto_data = fetch_pto_data(conn, selected_name)
             st.session_state['pto_data'] = pto_data
         else:
             pto_data = st.session_state['pto_data']
 
-        # Add radio buttons for filtering without a header above them
-        filter_type = st.sidebar.radio(
-            '',
-            ('Recent', 'All'),
-            key='filter_type',
-            index=0  # Default to 'Recent'
-        )
+        filter_type = st.sidebar.radio('', ('Recent', 'All'), key='filter_type', index=0)
 
-        # Filter the data based on the radio button selection
         filtered_pto_data = filter_pto_data(pto_data, filter_type)
 
-        # Prepare the filtered data for display in the editor
         edited_pto_df = pd.DataFrame(filtered_pto_data, columns=["Date", "PTO"])
         edited_pto_df['Date'] = pd.to_datetime(edited_pto_df['Date']).dt.date
 
         original_pto_df = edited_pto_df.copy()
 
-        # Render the data editor in the sidebar and add the callback for save button
         with st.sidebar:
             st.write("Edit PTO Entries:")
             edited_pto_df = st.data_editor(
@@ -332,6 +294,5 @@ with col1:
                 key='data_editor_sidebar',
             )
 
-        # Save changes button using callback
-        st.sidebar.button("Save Changes", key='save_changes_button', on_click=on_save_changes_callback, 
+        st.sidebar.button("Save Changes", key='save_changes_button', on_click=on_save_changes,
                           args=(selected_name, edited_pto_df, original_pto_df, conn))
