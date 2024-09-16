@@ -186,6 +186,10 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
     conn.commit()
     cur.close()
 
+    # Re-fetch the updated PTO data after saving changes
+    updated_pto_data = fetch_pto_data(conn, selected_name)
+    st.session_state['pto_data'] = updated_pto_data  # Update the session state with the new data
+
 # Reset session state when a new sales rep is selected
 def reset_session_state_on_rep_change(selected_name):
     # If there's a change in the selected sales rep, reset the session state to load new data
