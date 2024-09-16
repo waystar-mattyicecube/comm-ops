@@ -200,7 +200,9 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     # Refresh PTO data after saving changes
     pto_data = refresh_pto_data(conn, selected_name)
     st.session_state['pto_data'] = pto_data  # Update session state with refreshed data
-    st.session_state['data_updated'] = True  # Set a flag to indicate the data was updated
+
+    # Trigger a full rerun of the app to update the UI
+    st.rerun()
 
 # Establish connection to Snowflake and fetch distinct names
 conn = get_snowflake_connection()
@@ -221,7 +223,6 @@ with col1:
     if 'last_selected_name' not in st.session_state or st.session_state['last_selected_name'] != selected_name:
         st.session_state['last_selected_name'] = selected_name
         st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
-        st.session_state['data_updated'] = False  # Reset data update flag
 
     if selected_name != '':
         day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type')
@@ -282,7 +283,9 @@ with col1:
 
                     # Fetch updated PTO data after submission
                     st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
-                    st.session_state['data_updated'] = True  # Set flag to indicate data has been updated
+
+                    # Force a full rerun to reflect new data
+                    st.rerun()
 
     if selected_name != '':
         # Use session state to hold PTO data
@@ -326,10 +329,5 @@ with col1:
                     on_click=save_changes, 
                     args=(edited_pto_df, original_pto_df, selected_name, conn)
                 ):
-                    # Set flag to indicate data has been updated
-                    st.session_state['data_updated'] = True
-
-        # If data has been updated, refresh the page
-        if st.session_state.get('data_updated'):
-            st.session_state['data_updated'] = False  # Reset the flag
-            st.experimental_rerun()  # Trigger refresh
+                    # Force a rerun to immediately update the data editor with new data
+                    st.rerun()
