@@ -137,6 +137,13 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         time.sleep(3)
         success_message.empty()
 
+# Reset session state when a new sales rep is selected
+def reset_session_state_on_rep_change(selected_name):
+    # If there's a change in the selected sales rep, reset the session state to load new data
+    if 'last_selected_rep' not in st.session_state or st.session_state['last_selected_rep'] != selected_name:
+        st.session_state['last_selected_rep'] = selected_name
+        st.session_state['pto_data'] = None  # Reset PTO data to force a refresh
+
 # Establish connection to Snowflake and fetch distinct names
 conn = get_snowflake_connection()
 names = fetch_distinct_names(conn)
@@ -151,6 +158,9 @@ with col1:
         key='select_rep', 
         format_func=lambda x: 'Select Sales Rep' if x == '' else x
     )
+
+    # Reset session state if the user selects a new sales rep
+    reset_session_state_on_rep_change(selected_name)
 
     if selected_name != '':
         day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type')
@@ -214,7 +224,8 @@ with col1:
                     st.session_state['pto_data'] = new_pto_data
 
     if selected_name != '':
-        if 'pto_data' not in st.session_state:
+        # Fetch new PTO data if it's not already in session state or if a new rep is selected
+        if 'pto_data' not in st.session_state or st.session_state['pto_data'] is None:
             pto_data = fetch_pto_data(conn, selected_name)
             st.session_state['pto_data'] = pto_data
         else:
