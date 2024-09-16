@@ -129,7 +129,7 @@ def get_changed_rows(edited_pto_df, original_pto_df):
 def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
-    # Find changed rows
+    # Find changed rows (updated or new rows)
     changed_rows_df = get_changed_rows(edited_pto_df, original_pto_df)
     
     if not changed_rows_df.empty:
@@ -152,7 +152,18 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
             error_message.empty()
             return  # Prevent saving if duplicates are found
 
-    # Proceed with saving (inserts, updates, deletes)
+    # Detect deleted rows
+    deleted_rows_df = original_pto_df.loc[~original_pto_df.index.isin(edited_pto_df.index)]
+
+    # Delete rows from Snowflake
+    for _, deleted_row in deleted_rows_df.iterrows():
+        delete_query = """
+        DELETE FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+        WHERE NAME = %s AND "DATE" = %s
+        """
+        cur.execute(delete_query, (selected_name, deleted_row["Date"]))
+
+    # Insert/update rows in Snowflake
     for idx, edited_row in edited_pto_df.iterrows():
         original_row = original_pto_df.loc[idx] if idx in original_pto_df.index else None
 
