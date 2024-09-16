@@ -99,10 +99,6 @@ def fetch_pto_data(_conn, selected_name):
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
-    # Reset indices to ensure alignment when comparing rows
-    edited_pto_df.reset_index(drop=True, inplace=True)
-    original_pto_df.reset_index(drop=True, inplace=True)
-
     # Handle updates and insertions for remaining entries
     for index, row in edited_pto_df.iterrows():
         if pd.isnull(row['Date']):
@@ -121,19 +117,14 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
 
         hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
 
-        # Only update rows where changes have been made
-        if not row.equals(original_pto_df.loc[index]):
-            update_query = f"""
-            UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-            SET "Hours Worked Text" = %s, "Hours Worked" = %s, "DATE" = %s
-            WHERE NAME = %s AND "DATE" = %s
-            """
-            cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
-            st.write(f"Executing query: {update_query} with values {row['PTO'], hours_worked, row['Date'], selected_name, row['Date']}")
-
+        update_query = f"""
+        UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+        SET "Hours Worked Text" = %s, "Hours Worked" = %s, "DATE" = %s
+        WHERE NAME = %s AND "DATE" = %s
+        """
+        cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
+    
     conn.commit()
-    st.write("Commit successful")
-
     cur.close()
 
     # Fetch updated PTO data after changes are saved and refresh the editor
