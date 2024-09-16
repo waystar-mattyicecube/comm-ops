@@ -241,9 +241,9 @@ with col1:
         else:
             pto_data = st.session_state['pto_data']
 
-        # Add radio buttons for filtering
+        # Add radio buttons for filtering without a header above them
         filter_type = st.sidebar.radio(
-            "Filter PTO Entries",
+            '',
             ('Recent', 'All'),
             key='filter_type',
             index=0  # Default to 'Recent'
