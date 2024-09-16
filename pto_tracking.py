@@ -2,8 +2,8 @@ import streamlit as st
 from datetime import datetime, timedelta
 from streamlit_date_picker import date_range_picker, PickerType
 import snowflake.connector
-import time
 import pandas as pd
+import time
 
 # Logo URL
 logo_url = "https://companieslogo.com/img/orig/WAY-3301bb15.png?t=1717743657"
@@ -95,27 +95,8 @@ def fetch_pto_data(_conn, selected_name):
     cur.execute(query, (selected_name,))
     return cur.fetchall()
 
-# Refresh the data editor with updated data
-def refresh_data_editor(pto_data, editor_key):
-    pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
-    pto_df['Date'] = pd.to_datetime(pto_df['Date']).dt.date
-
-    with st.sidebar:
-        st.data_editor(
-            pto_df,
-            num_rows="dynamic",
-            column_config={
-                "Date": st.column_config.Column(label="Date", width=160),
-                "PTO": st.column_config.SelectboxColumn(
-                    label="PTO", options=["Full Day", "Half Day"], width=110, required=True
-                ),
-            },
-            hide_index=True,
-            key=editor_key  # Ensure the data editor gets a unique key
-        )
-
 # Callback function to save changes with duplicate check only for new entries
-def save_changes(edited_pto_df, original_pto_df, selected_name, conn, editor_key):
+def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
     # Handle updates and insertions for remaining entries
@@ -146,9 +127,9 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn, editor_key
     conn.commit()
     cur.close()
 
-    # Immediately refresh the data editor with updated data
+    # Fetch updated PTO data after changes are saved and refresh the editor
     new_pto_data = fetch_pto_data(conn, selected_name)
-    refresh_data_editor(new_pto_data, editor_key)
+    st.session_state['pto_data'] = new_pto_data  # Update session state with refreshed data
 
     with st.sidebar:
         success_message = st.empty()
@@ -228,26 +209,41 @@ with col1:
                     time.sleep(5)
                     success_message.empty()
 
-                    # Immediately refresh the data editor with updated data
+                    # Fetch updated PTO data and update the editor
                     new_pto_data = fetch_pto_data(conn, selected_name)
-                    refresh_data_editor(new_pto_data, editor_key='data_editor_submit')
+                    st.session_state['pto_data'] = new_pto_data
 
     if selected_name != '':
-        pto_data = fetch_pto_data(conn, selected_name)
+        if 'pto_data' not in st.session_state:
+            pto_data = fetch_pto_data(conn, selected_name)
+            st.session_state['pto_data'] = pto_data
+        else:
+            pto_data = st.session_state['pto_data']
 
-        st.write("Edit PTO Entries:")
         edited_pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
         edited_pto_df['Date'] = pd.to_datetime(edited_pto_df['Date']).dt.date
 
         original_pto_df = edited_pto_df.copy()
 
-        # Render the data editor in the sidebar with a unique key
-        refresh_data_editor(pto_data, editor_key='data_editor_sidebar')
+        # Render the data editor in the sidebar (only once, and update it on changes)
+        with st.sidebar:
+            st.write("Edit PTO Entries:")
+            edited_pto_df = st.data_editor(
+                edited_pto_df,
+                num_rows="dynamic",
+                column_config={
+                    "Date": st.column_config.Column(label="Date", width=160),
+                    "PTO": st.column_config.SelectboxColumn(
+                        label="PTO", options=["Full Day", "Half Day"], width=110, required=True
+                    ),
+                },
+                hide_index=True,
+                key='data_editor_sidebar'
+            )
 
-        if st.button(
+        # Save changes button to save edits
+        if st.sidebar.button(
             "Save Changes", 
-            key='save_changes_button', 
-            on_click=save_changes, 
-            args=(edited_pto_df, original_pto_df, selected_name, conn, 'data_editor_sidebar')
+            key='save_changes_button'
         ):
-            pass  # Save Changes button is now triggering immediate updates
+            save_changes(edited_pto_df, original_pto_df, selected_name, conn)
