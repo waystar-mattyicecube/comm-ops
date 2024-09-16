@@ -95,11 +95,10 @@ def fetch_pto_data(_conn, selected_name):
     cur.execute(query, (selected_name,))
     return cur.fetchall()
 
-# Callback function to save changes with duplicate check only for new entries
+# Save changes with updated logic to handle database changes
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
-
-    # Handle updates and insertions for remaining entries
+    
     for index, row in edited_pto_df.iterrows():
         if pd.isnull(row['Date']):
             with st.sidebar:
@@ -117,14 +116,18 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
 
         hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
 
+        # Check if the row exists and update if it does
         update_query = f"""
         UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-        SET "Hours Worked Text" = %s, "Hours Worked" = %s, "DATE" = %s
+        SET "Hours Worked Text" = %s, "Hours Worked" = %s
         WHERE NAME = %s AND "DATE" = %s
         """
-        # Add logging to verify what values are being passed to the query
-        st.write(f"Updating: PTO = {row['PTO']}, Hours Worked = {hours_worked}, Date = {row['Date']}")
-        cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
+        
+        cur.execute(update_query, (row['PTO'], hours_worked, selected_name, row['Date']))
+        
+        # Check how many rows were updated (to verify if the update happened)
+        rows_affected = cur.rowcount
+        st.write(f"Rows affected for Date {row['Date']}: {rows_affected}")
     
     conn.commit()
     cur.close()
@@ -139,7 +142,6 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
         time.sleep(3)
         success_message.empty()
 
-    # Refresh the data editor with new data
     st.rerun()
 
 # Reset session state when a new sales rep is selected
@@ -262,4 +264,5 @@ with col1:
             "Save Changes", 
             key='save_changes_button'
         ):
+            st.write("Saving changes...")
             save_changes(edited_pto_df, original_pto_df, selected_name, conn)
