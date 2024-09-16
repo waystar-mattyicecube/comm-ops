@@ -96,24 +96,26 @@ def fetch_pto_data(_conn, selected_name):
     return cur.fetchall()
 
 # Refresh the data editor with updated data
-def refresh_data_editor(pto_data):
+def refresh_data_editor(pto_data, editor_key):
     pto_df = pd.DataFrame(pto_data, columns=["Date", "PTO"])
     pto_df['Date'] = pd.to_datetime(pto_df['Date']).dt.date
 
-    st.data_editor(
-        pto_df,
-        num_rows="dynamic",
-        column_config={
-            "Date": st.column_config.Column(label="Date", width=160),
-            "PTO": st.column_config.SelectboxColumn(
-                label="PTO", options=["Full Day", "Half Day"], width=110, required=True
-            ),
-        },
-        hide_index=True
-    )
+    with st.sidebar:
+        st.data_editor(
+            pto_df,
+            num_rows="dynamic",
+            column_config={
+                "Date": st.column_config.Column(label="Date", width=160),
+                "PTO": st.column_config.SelectboxColumn(
+                    label="PTO", options=["Full Day", "Half Day"], width=110, required=True
+                ),
+            },
+            hide_index=True,
+            key=editor_key  # Ensure the data editor gets a unique key
+        )
 
 # Callback function to save changes with duplicate check only for new entries
-def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
+def save_changes(edited_pto_df, original_pto_df, selected_name, conn, editor_key):
     cur = conn.cursor()
 
     # Handle updates and insertions for remaining entries
@@ -146,7 +148,7 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
 
     # Immediately refresh the data editor with updated data
     new_pto_data = fetch_pto_data(conn, selected_name)
-    refresh_data_editor(new_pto_data)
+    refresh_data_editor(new_pto_data, editor_key)
 
     with st.sidebar:
         success_message = st.empty()
@@ -228,7 +230,7 @@ with col1:
 
                     # Immediately refresh the data editor with updated data
                     new_pto_data = fetch_pto_data(conn, selected_name)
-                    refresh_data_editor(new_pto_data)
+                    refresh_data_editor(new_pto_data, editor_key='data_editor_submit')
 
     if selected_name != '':
         pto_data = fetch_pto_data(conn, selected_name)
@@ -239,12 +241,13 @@ with col1:
 
         original_pto_df = edited_pto_df.copy()
 
-        refresh_data_editor(pto_data)
+        # Render the data editor in the sidebar with a unique key
+        refresh_data_editor(pto_data, editor_key='data_editor_sidebar')
 
         if st.button(
             "Save Changes", 
             key='save_changes_button', 
             on_click=save_changes, 
-            args=(edited_pto_df, original_pto_df, selected_name, conn)
+            args=(edited_pto_df, original_pto_df, selected_name, conn, 'data_editor_sidebar')
         ):
             pass  # Save Changes button is now triggering immediate updates
