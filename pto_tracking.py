@@ -206,6 +206,10 @@ names.insert(0, '')  # Add a placeholder for the selectbox
 
 col1, spacer, col2 = st.columns([8, 0.1, 1])
 
+# Create placeholders for displaying success/error messages for the date picker on the main screen
+main_error_message = st.empty()
+main_success_message = st.empty()
+
 with col1:
     selected_name = st.selectbox(
         '', 
@@ -249,11 +253,9 @@ with col1:
 
                 if existing_dates:
                     existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
-                    with st.sidebar:
-                        error_message = st.empty()
-                        error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
+                    main_error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
                     time.sleep(5)
-                    error_message.empty()
+                    main_error_message.empty()
                 else:
                     hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
                     hours_worked = 0 if day_type == 'Full Day' else 0.5
@@ -268,11 +270,9 @@ with col1:
                         current_date += timedelta(days=1)
                     conn.commit()
 
-                    with st.sidebar:
-                        success_message = st.empty()
-                        success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date} (excluding weekends).")
+                    main_success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date} (excluding weekends).")
                     time.sleep(5)
-                    success_message.empty()
+                    main_success_message.empty()
 
                     # Fetch updated PTO data and update the editor
                     new_pto_data = fetch_pto_data(conn, selected_name)
