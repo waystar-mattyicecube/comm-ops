@@ -1,8 +1,66 @@
 import streamlit as st
 from datetime import datetime, timedelta
+from streamlit_date_picker import date_range_picker, PickerType
 import snowflake.connector
 import pandas as pd
 import time
+
+# Logo URL
+logo_url = "https://companieslogo.com/img/orig/WAY-3301bb15.png?t=1717743657"
+
+# Display the logo and title inline using HTML and CSS with a smaller logo
+st.markdown(
+    f"""
+    <div style="display: flex; align-items: center;">
+        <img src="{logo_url}" alt="Company Logo" style="width:30px; margin-right:10px;">
+        <h1 style="display: inline;">Sales PTO Tracking</h1>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Inject custom CSS for the radio button and submit button styling
+st.markdown(
+    """
+    <style>
+    div[role="radiogroup"] > label > div:first-of-type {
+        background-color: #0056b3 !important;
+    }
+    div[role="radiogroup"] > label:hover > div:first-of-type {
+        background-color: #0056b3 !important;
+    }
+    div[role="radiogroup"] > label > div:first-of-type > div[aria-checked="true"] {
+        border: 2px solid #0056b3 !important;
+    }
+    .stButton > button {
+        background-color: #0056b3;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+        border-radius: 0.25rem;
+        transition: background-color 0.3s ease, color 0.3s ease, border 0.3s ease;
+    }
+    .stButton > button:hover {
+        background-color: white;
+        color: #0056b3;
+        border: 2px solid #0056b3;
+    }
+    .stButton > button:active {
+        background-color: #0056b3 !important;
+        color: white !important;
+        border: none !important;
+    }
+    .stButton > button:focus {
+        background-color: #0056b3 !important;
+        color: white !important;
+        border: none !important;
+        outline: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # Cache the Snowflake connection
 @st.cache_resource
@@ -37,58 +95,47 @@ def fetch_pto_data(_conn, selected_name):
     cur.execute(query, (selected_name,))
     return cur.fetchall()
 
-# Save changes with corrected date format logic
-def save_changes(edited_pto_df, selected_name, conn):
+# Callback function to save changes with duplicate check only for new entries
+def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
-
-    # Ensure selected_name matches database format (strip or clean if necessary)
-    selected_name = selected_name.strip()
-
-    # Debugging: Write what we got from the editor
-    st.write("Edited DataFrame from editor:", edited_pto_df)
 
     # Handle updates and insertions for remaining entries
     for index, row in edited_pto_df.iterrows():
         if pd.isnull(row['Date']):
-            st.warning(f"Skipping invalid date in row {index}")
+            with st.sidebar:
+                warning_message = st.empty()
+                warning_message.warning(f"Skipping invalid date in row {index}")
+                time.sleep(5)
+                warning_message.empty()
             continue
 
-        # Ensure the Date format matches the database (using consistent formatting)
-        row['Date'] = pd.to_datetime(row['Date']).date()
+        if isinstance(row['Date'], str):
+            row['Date'] = pd.to_datetime(row['Date'])
 
-        # Format the date to ensure compatibility with the database (YYYY-MM-DD format)
-        formatted_date = row['Date'].strftime('%Y-%m-%d')
+        if row['Date'].weekday() in [5, 6]:  # Skip weekends
+            continue
 
-        # Ensure the PTO values are updated accordingly
         hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
 
-        # Simplified single update query
         update_query = f"""
         UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-        SET "Hours Worked Text" = %s, "Hours Worked" = %s
-        WHERE TRIM(NAME) = %s AND "DATE" = %s
+        SET "Hours Worked Text" = %s, "Hours Worked" = %s, "DATE" = %s
+        WHERE NAME = %s AND "DATE" = %s
         """
-        
-        cur.execute(update_query, (row['PTO'], hours_worked, selected_name, formatted_date))
-
-        # Debugging: Check how many rows were updated
-        st.write(f"Rows affected for {formatted_date}:", cur.rowcount)
-
+        cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
+    
     conn.commit()
     cur.close()
 
-    # Fetch updated PTO data after changes are saved
+    # Fetch updated PTO data after changes are saved and refresh the editor
     new_pto_data = fetch_pto_data(conn, selected_name)
     st.session_state['pto_data'] = new_pto_data  # Update session state with refreshed data
-    st.write("Updated PTO data:", new_pto_data)
 
     with st.sidebar:
         success_message = st.empty()
         success_message.success("Changes saved successfully!")
         time.sleep(3)
         success_message.empty()
-
-    st.rerun()
 
 # Reset session state when a new sales rep is selected
 def reset_session_state_on_rep_change(selected_name):
@@ -118,41 +165,63 @@ with col1:
     if selected_name != '':
         day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type')
         default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
+        refresh_value = timedelta(days=1)
 
-        if st.button('Submit', key='submit_button'):
-            start_date = default_start.date()
-            end_date = default_end.date()
+        date_range_string = date_range_picker(picker_type=PickerType.date,
+                                              start=default_start, end=default_end,
+                                              key='date_range_picker',
+                                              refresh_button={'is_show': False, 'button_name': 'Refresh Last 1 Days',
+                                                              'refresh_value': refresh_value})
 
-            cur = conn.cursor()
-            check_query = f"""
-            SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-            WHERE NAME = %s AND "DATE" BETWEEN %s AND %s
-            """
-            cur.execute(check_query, (selected_name, start_date, end_date))
-            existing_dates = [row[0] for row in cur.fetchall()]
+        if date_range_string:
+            start_date, end_date = date_range_string
+            start_date = datetime.strptime(start_date, '%Y-%m-%d') if isinstance(start_date, str) else start_date
+            end_date = datetime.strptime(end_date, '%Y-%m-%d') if isinstance(end_date, str) else end_date
 
-            if existing_dates:
-                existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
-                st.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
-            else:
-                hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
-                hours_worked = 0 if day_type == 'Full Day' else 0.5
-                current_date = start_date
-                while current_date <= end_date:
-                    if current_date.weekday() < 5:  # Ignore weekends
-                        insert_query = f"""
-                        INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "Hours Worked Text", "Hours Worked", "DATE")
-                        VALUES (%s, %s, %s, %s)
-                        """
-                        cur.execute(insert_query, (selected_name, hours_worked_text, hours_worked, current_date))
-                    current_date += timedelta(days=1)
-                conn.commit()
+            formatted_start_date = start_date.strftime('%b %d, %Y')
+            formatted_end_date = end_date.strftime('%b %d, %Y')
 
-                st.success(f"Time off submitted for {selected_name} from {start_date} to {end_date} (excluding weekends).")
+            st.write(f"{formatted_start_date} - {formatted_end_date}")
 
-                # Fetch updated PTO data and update the editor
-                new_pto_data = fetch_pto_data(conn, selected_name)
-                st.session_state['pto_data'] = new_pto_data
+            if st.button('Submit', key='submit_button'):
+                check_query = f"""
+                SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+                WHERE NAME = %s AND "DATE" BETWEEN %s AND %s
+                """
+                cur = conn.cursor()
+                cur.execute(check_query, (selected_name, start_date, end_date))
+                existing_dates = [row[0] for row in cur.fetchall()]
+
+                if existing_dates:
+                    existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
+                    with st.sidebar:
+                        error_message = st.empty()
+                        error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
+                    time.sleep(5)
+                    error_message.empty()
+                else:
+                    hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
+                    hours_worked = 0 if day_type == 'Full Day' else 0.5
+                    current_date = start_date
+                    while current_date <= end_date:
+                        if current_date.weekday() < 5:  # Ignore weekends
+                            insert_query = f"""
+                            INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "Hours Worked Text", "Hours Worked", "DATE")
+                            VALUES (%s, %s, %s, %s)
+                            """
+                            cur.execute(insert_query, (selected_name, hours_worked_text, hours_worked, current_date))
+                        current_date += timedelta(days=1)
+                    conn.commit()
+
+                    with st.sidebar:
+                        success_message = st.empty()
+                        success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date} (excluding weekends).")
+                    time.sleep(5)
+                    success_message.empty()
+
+                    # Fetch updated PTO data and update the editor
+                    new_pto_data = fetch_pto_data(conn, selected_name)
+                    st.session_state['pto_data'] = new_pto_data
 
     if selected_name != '':
         # Fetch new PTO data if it's not already in session state or if a new rep is selected
@@ -184,5 +253,8 @@ with col1:
             )
 
         # Save changes button to save edits
-        if st.sidebar.button("Save Changes", key='save_changes_button'):
-            save_changes(edited_pto_df, selected_name, conn)
+        if st.sidebar.button(
+            "Save Changes", 
+            key='save_changes_button'
+        ):
+            save_changes(edited_pto_df, original_pto_df, selected_name, conn)
