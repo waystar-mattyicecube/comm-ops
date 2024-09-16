@@ -55,7 +55,7 @@ st.markdown(
         background-color: #0056b3 !important;
         color: white !important;
         border: none !important;
-        outline: none !important;
+        outline: none !important.
     }
     </style>
     """,
@@ -150,7 +150,7 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
                 error_message.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
             time.sleep(5)
             error_message.empty()
-            return  # Prevent further execution if duplicates are found
+            return False  # Return False if duplicate PTO dates exist
 
     # Detect deleted rows
     deleted_rows_df = original_pto_df.loc[~original_pto_df.index.isin(edited_pto_df.index)]
@@ -189,6 +189,8 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
     # Re-fetch the updated PTO data after saving changes
     updated_pto_data = fetch_pto_data(conn, selected_name)
     st.session_state['pto_data'] = updated_pto_data  # Update the session state with the new data
+
+    return True  # Return True if the changes were saved successfully
 
 # Reset session state when a new sales rep is selected
 def reset_session_state_on_rep_change(selected_name):
@@ -319,11 +321,12 @@ with col1:
 
         # Save changes button to save edits
         if st.sidebar.button("Save Changes", key='save_changes_button'):
-            save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn)
+            success = save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn)
 
             # Show success message only if the changes were successful
-            with st.sidebar:
-                success_message = st.empty()
-                success_message.success("Changes saved successfully!")
-                time.sleep(3)
-                success_message.empty()
+            if success:
+                with st.sidebar:
+                    success_message = st.empty()
+                    success_message.success("Changes saved successfully!")
+                    time.sleep(3)
+                    success_message.empty()
