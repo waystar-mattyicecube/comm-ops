@@ -140,8 +140,8 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
             with st.sidebar:
                 error_message = st.empty()
                 error_message.error(f"Cannot save. The following PTO dates already exist for {selected_name}: {conflicting_dates_str}.")
-            time.sleep(5)  # Display the error for 5 seconds
-            error_message.empty()  # Clear the message after 5 seconds
+                time.sleep(5)  # Display the error for 5 seconds
+                error_message.empty()  # Clear the message after 5 seconds
             return  # Prevent submission if duplicates are found
 
     # Detect deleted rows
@@ -273,23 +273,35 @@ with col1:
 
             original_pto_df = pto_df.copy()
 
-            st.write("Edit PTO Entries:")
-            # Show the Data Editor with no pagination argument
-            edited_pto_df = st.data_editor(
-                pto_df,
-                num_rows="dynamic",
-                column_config={
-                    "Date": st.column_config.Column(label="Date", width=160),
-                    "PTO": st.column_config.SelectboxColumn(
-                        label="PTO", options=["Full Day", "Half Day"], width=110, required=True
-                    ),
-                },
-                hide_index=True
-            )
+            with st.sidebar:
+                today = datetime.now().date()
+                current_year = today.year
+                next_year = current_year + 1
 
-            st.button(
-                "Save Changes", 
-                key='save_changes_button', 
-                on_click=save_changes, 
-                args=(edited_pto_df, original_pto_df, selected_name, conn)
-            )
+                filter_option = st.radio("", ["All", "Recent"], index=1, key="filter_option")
+
+                if filter_option == "Recent":
+                    pto_df = pto_df[pto_df['Date'].apply(lambda x: x.year in [current_year, next_year])]
+
+                pto_df = pto_df.reset_index(drop=True)
+                pto_df = pto_df.sort_values(by='Date', ascending=False)
+
+                st.write("Edit PTO Entries:")
+                edited_pto_df = st.data_editor(
+                    pto_df,
+                    num_rows="dynamic",
+                    column_config={
+                        "Date": st.column_config.Column(label="Date", width=160),
+                        "PTO": st.column_config.SelectboxColumn(
+                            label="PTO", options=["Full Day", "Half Day"], width=110, required=True
+                        ),
+                    },
+                    hide_index=True
+                )
+
+                st.button(
+                    "Save Changes", 
+                    key='save_changes_button', 
+                    on_click=save_changes, 
+                    args=(edited_pto_df, original_pto_df, selected_name, conn)
+                )
