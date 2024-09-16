@@ -4,6 +4,7 @@ from streamlit_date_picker import date_range_picker, PickerType
 import snowflake.connector
 import pandas as pd
 import time
+from snowflake.connector.errors import ProgrammingError
 
 # Logo URL
 logo_url = "https://companieslogo.com/img/orig/WAY-3301bb15.png?t=1717743657"
@@ -74,9 +75,20 @@ def get_snowflake_connection():
         schema='PUBLIC'
     )
 
+# Reconnect to Snowflake if the token has expired
+def reconnect_snowflake(conn):
+    try:
+        conn.ping()  # Check if connection is active
+    except ProgrammingError as e:
+        if e.errno == 390114:  # Authentication token has expired
+            st.warning("Reconnecting to Snowflake due to expired session...")
+            conn = get_snowflake_connection()  # Re-establish connection
+    return conn
+
 # Fetch distinct names from Snowflake
 @st.cache_data(show_spinner=False)
 def fetch_distinct_names(_conn):
+    _conn = reconnect_snowflake(_conn)
     cur = _conn.cursor()
     query = "SELECT DISTINCT NAME FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO"
     cur.execute(query)
@@ -85,6 +97,7 @@ def fetch_distinct_names(_conn):
 
 # Fetch PTO data from Snowflake without caching
 def fetch_pto_data(_conn, selected_name):
+    _conn = reconnect_snowflake(_conn)
     cur = _conn.cursor()
     query = f"""
     SELECT "DATE", "Hours Worked Text" 
@@ -97,6 +110,7 @@ def fetch_pto_data(_conn, selected_name):
 
 # Callback function to save changes with duplicate check only for new entries
 def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
+    conn = reconnect_snowflake(conn)
     cur = conn.cursor()
 
     # Handle updates and insertions for remaining entries
@@ -139,7 +153,6 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
 
 # Reset session state when a new sales rep is selected
 def reset_session_state_on_rep_change(selected_name):
-    # If there's a change in the selected sales rep, reset the session state to load new data
     if 'last_selected_rep' not in st.session_state or st.session_state['last_selected_rep'] != selected_name:
         st.session_state['last_selected_rep'] = selected_name
         st.session_state['pto_data'] = None  # Reset PTO data to force a refresh
@@ -184,6 +197,7 @@ with col1:
             st.write(f"{formatted_start_date} - {formatted_end_date}")
 
             if st.button('Submit', key='submit_button'):
+                conn = reconnect_snowflake(conn)
                 check_query = f"""
                 SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
                 WHERE NAME = %s AND "DATE" BETWEEN %s AND %s
@@ -224,7 +238,6 @@ with col1:
                     st.session_state['pto_data'] = new_pto_data
 
     if selected_name != '':
-        # Fetch new PTO data if it's not already in session state or if a new rep is selected
         if 'pto_data' not in st.session_state or st.session_state['pto_data'] is None:
             pto_data = fetch_pto_data(conn, selected_name)
             st.session_state['pto_data'] = pto_data
@@ -236,7 +249,7 @@ with col1:
 
         original_pto_df = edited_pto_df.copy()
 
-        # Render the data editor in the sidebar (only once, and update it on changes)
+        # Render the data editor in the sidebar
         with st.sidebar:
             st.write("Edit PTO Entries:")
             edited_pto_df = st.data_editor(
@@ -258,5 +271,3 @@ with col1:
             key='save_changes_button'
         ):
             save_changes(edited_pto_df, original_pto_df, selected_name, conn)
-
-
