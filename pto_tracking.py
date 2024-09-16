@@ -252,9 +252,12 @@ with col1:
                 key='data_editor_sidebar'
             )
 
-        # Save changes button to save edits
+        # Save changes button to save edits and refresh data editor
         if st.sidebar.button(
             "Save Changes", 
             key='save_changes_button'
         ):
             save_changes(edited_pto_df, original_pto_df, selected_name, conn)
+
+            # Refresh the data editor with updated data after saving
+            st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
