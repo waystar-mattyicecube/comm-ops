@@ -103,8 +103,14 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
     edited_pto_df = edited_pto_df.reset_index(drop=True)
     original_pto_df = original_pto_df.reset_index(drop=True)
 
+    # Ensure both DataFrames have the same number of rows
+    min_rows = min(len(edited_pto_df), len(original_pto_df))
+
     # Handle updates and insertions for remaining entries
-    for index, row in edited_pto_df.iterrows():
+    for index in range(min_rows):
+        row = edited_pto_df.loc[index]
+        original_row = original_pto_df.loc[index]
+
         if pd.isnull(row['Date']):
             with st.sidebar:
                 warning_message = st.empty()
@@ -120,7 +126,7 @@ def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
             continue
 
         # Check if the row has changed
-        if not row.equals(original_pto_df.loc[index]):
+        if not row.equals(original_row):
             hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
 
             update_query = f"""
