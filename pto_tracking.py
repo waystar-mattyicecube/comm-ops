@@ -96,47 +96,43 @@ def fetch_pto_data(_conn, selected_name):
     cur.execute(query, (selected_name,))
     return cur.fetchall()
 
-# Callback function to save changes with duplicate check only for new entries
-def save_changes(edited_pto_df, original_pto_df, selected_name, conn):
+# Function to insert, update, and delete records based on the data editor's changes
+def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn):
     cur = conn.cursor()
 
-    # Handle updates and insertions for remaining entries
-    for index, row in edited_pto_df.iterrows():
-        if pd.isnull(row['Date']):
-            with st.sidebar:
-                warning_message = st.empty()
-                warning_message.warning(f"Skipping invalid date in row {index}")
-                time.sleep(5)
-                warning_message.empty()
-            continue
+    # Iterate over the edited DataFrame rows
+    for idx, edited_row in edited_pto_df.iterrows():
+        original_row = original_pto_df.loc[idx] if idx in original_pto_df.index else None
 
-        if isinstance(row['Date'], str):
-            row['Date'] = pd.to_datetime(row['Date'])
+        # Check if row exists in original data (update or insert logic)
+        if original_row is not None:
+            # If the Date or PTO value has changed, update the record
+            if edited_row["Date"] != original_row["Date"] or edited_row["PTO"] != original_row["PTO"]:
+                update_query = """
+                UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+                SET "DATE" = %s, "Hours Worked Text" = %s
+                WHERE NAME = %s AND "DATE" = %s
+                """
+                cur.execute(update_query, (edited_row["Date"], edited_row["PTO"], selected_name, original_row["Date"]))
+        else:
+            # If the row is new, insert it
+            insert_query = """
+            INSERT INTO STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO (NAME, "DATE", "Hours Worked Text")
+            VALUES (%s, %s, %s)
+            """
+            cur.execute(insert_query, (selected_name, edited_row["Date"], edited_row["PTO"]))
 
-        if row['Date'].weekday() in [5, 6]:  # Skip weekends
-            continue
+    # Check for rows in original DataFrame that are not in edited DataFrame (delete logic)
+    for idx, original_row in original_pto_df.iterrows():
+        if idx not in edited_pto_df.index:
+            delete_query = """
+            DELETE FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
+            WHERE NAME = %s AND "DATE" = %s
+            """
+            cur.execute(delete_query, (selected_name, original_row["Date"]))
 
-        hours_worked = 0.0 if row['PTO'] == 'Full Day' else 0.5
-
-        update_query = f"""
-        UPDATE STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-        SET "Hours Worked Text" = %s, "Hours Worked" = %s, "DATE" = %s
-        WHERE NAME = %s AND "DATE" = %s
-        """
-        cur.execute(update_query, (row['PTO'], hours_worked, row['Date'], selected_name, row['Date']))
-    
     conn.commit()
     cur.close()
-
-    # Fetch updated PTO data after changes are saved and refresh the editor
-    new_pto_data = fetch_pto_data(conn, selected_name)
-    st.session_state['pto_data'] = new_pto_data  # Update session state with refreshed data
-
-    with st.sidebar:
-        success_message = st.empty()
-        success_message.success("Changes saved successfully!")
-        time.sleep(3)
-        success_message.empty()
 
 # Reset session state when a new sales rep is selected
 def reset_session_state_on_rep_change(selected_name):
@@ -254,8 +250,11 @@ with col1:
             )
 
         # Save changes button to save edits
-        if st.sidebar.button(
-            "Save Changes", 
-            key='save_changes_button'
-        ):
-            save_changes(edited_pto_df, original_pto_df, selected_name, conn)
+        if st.sidebar.button("Save Changes", key='save_changes_button'):
+            save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn)
+
+            with st.sidebar:
+                success_message = st.empty()
+                success_message.success("Changes saved successfully!")
+                time.sleep(3)
+                success_message.empty()
