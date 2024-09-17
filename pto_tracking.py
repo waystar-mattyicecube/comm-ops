@@ -62,18 +62,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Cache the Snowflake connection
-@st.cache_resource
-def get_snowflake_connection():
-    return snowflake.connector.connect(
-        user='mattyicecube',
-        password='Mattman1159!',
-        account='fna44578.east-us-2.azure',
-        warehouse='COMPUTE_WH',
-        database='STREAMLIT_APPS',
-        schema='PUBLIC',
-        client_session_keep_alive=True
-    )
 
 # Fetch distinct names from Snowflake
 @st.cache_data(show_spinner=False)
