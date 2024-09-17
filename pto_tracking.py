@@ -49,13 +49,13 @@ st.markdown(
     .stButton > button:active {
         background-color: #0056b3 !important;
         color: white !important;
-        border: none !important.
+        border: none !important;
     }
     .stButton > button:focus {
         background-color: #0056b3 !important;
         color: white !important;
         border: none !important;
-        outline: none !important.
+        outline: none !important;
     }
     </style>
     """,
@@ -141,7 +141,7 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
     if check_for_weekend_dates(edited_pto_df):
         error_message = st.sidebar.error("PTO cannot occur on weekends. Please revise your entry.")
         time.sleep(5)
-        error_message.empty()
+        st.sidebar.empty()  # Clear the error message
         return False  # Prevent saving changes if weekend dates are found
 
     if not changed_rows_df.empty:
@@ -158,6 +158,8 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
         if duplicate_dates:
             duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
             st.sidebar.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+            time.sleep(5)
+            st.sidebar.empty()  # Clear the error message
             return False  # Prevent further saving if duplicates exist
 
     # Detect deleted rows
@@ -241,7 +243,6 @@ with col1:
         day_type = st.radio('', ['Full Day', 'Half Day'], key='day_type', label_visibility='collapsed')
         default_start, default_end = datetime.now() - timedelta(days=1), datetime.now()
 
-        # Removed refresh_value to fix the KeyError issue
         date_range_string = date_range_picker(
             picker_type=PickerType.date,
             start=default_start,
@@ -271,6 +272,8 @@ with col1:
                 if existing_dates:
                     existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
                     main_error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
+                    time.sleep(5)
+                    main_error_message.empty()  # Clear the error message
                 else:
                     current_date = start_date
                     hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
@@ -286,7 +289,7 @@ with col1:
 
                     main_success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date}.")
                     time.sleep(5)
-                    main_success_message.empty()
+                    main_success_message.empty()  # Clear the success message
 
                     st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
 
