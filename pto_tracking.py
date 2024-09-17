@@ -99,7 +99,7 @@ def fetch_pto_data(_conn, selected_name):
 # Function to filter PTO data based on 'Recent' or 'All' selection
 def filter_pto_data(pto_data, filter_type):
     today = datetime.now().date()
-    one_year_ago = today - timedelta(days=365)
+    one_year_ago = today - timedelta(days=300)
     one_year_from_now = today + timedelta(days=365)
 
     if filter_type == 'Recent':
