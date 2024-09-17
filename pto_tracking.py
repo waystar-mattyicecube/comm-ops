@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from streamlit_date_picker import date_range_picker, PickerType
 import snowflake.connector
 import pandas as pd
+import time
 
 # Logo URL
 logo_url = "https://companieslogo.com/img/orig/WAY-3301bb15.png?t=1717743657"
@@ -138,8 +139,9 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
 
     # Check for weekend dates
     if check_for_weekend_dates(edited_pto_df):
-        st.session_state['weekend_error'] = True
-        st.session_state['error_time'] = datetime.now()  # Set the current time for error display
+        error_message = st.sidebar.error("PTO cannot occur on weekends. Please revise your entry.")
+        time.sleep(5)
+        st.sidebar.empty()  # Clear the error message
         return False  # Prevent saving changes if weekend dates are found
 
     if not changed_rows_df.empty:
@@ -154,8 +156,10 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
         duplicate_dates = [row[0] for row in cur.fetchall()]
 
         if duplicate_dates:
-            st.session_state['duplicate_error'] = duplicate_dates
-            st.session_state['error_time'] = datetime.now()  # Set the current time for error display
+            duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
+            st.sidebar.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+            time.sleep(5)
+            st.sidebar.empty()  # Clear the error message
             return False  # Prevent further saving if duplicates exist
 
     # Detect deleted rows
@@ -212,8 +216,6 @@ def reset_session_state_on_rep_change(selected_name):
     if 'last_selected_rep' not in st.session_state or st.session_state['last_selected_rep'] != selected_name:
         st.session_state['last_selected_rep'] = selected_name
         st.session_state['pto_data'] = None  # Reset to force refresh
-        st.session_state.pop('weekend_error', None)
-        st.session_state.pop('duplicate_error', None)
 
 # Establish connection to Snowflake and fetch names
 conn = get_snowflake_connection()
@@ -270,6 +272,8 @@ with col1:
                 if existing_dates:
                     existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
                     main_error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
+                    time.sleep(5)
+                    main_error_message.empty()  # Clear the error message
                 else:
                     current_date = start_date
                     hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
@@ -284,22 +288,10 @@ with col1:
                     conn.commit()
 
                     main_success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date}.")
+                    time.sleep(5)
+                    main_success_message.empty()  # Clear the success message
 
                     st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
-
-    # Display error message if applicable
-    if 'weekend_error' in st.session_state:
-        st.sidebar.error("PTO cannot occur on weekends. Please revise your entry.")
-        # Clear the weekend error after 5 seconds
-        if datetime.now() - st.session_state['error_time'] > timedelta(seconds=5):
-            st.session_state.pop('weekend_error', None)
-
-    if 'duplicate_error' in st.session_state:
-        duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in st.session_state['duplicate_error']])
-        st.sidebar.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
-        # Clear the duplicate error after 5 seconds
-        if datetime.now() - st.session_state['error_time'] > timedelta(seconds=5):
-            st.session_state.pop('duplicate_error', None)
 
     if selected_name != '':
         if 'pto_data' not in st.session_state or st.session_state['pto_data'] is None:
