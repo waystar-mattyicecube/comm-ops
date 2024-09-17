@@ -149,7 +149,9 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
         changed_dates = changed_rows_df['Date'].tolist()
         check_existing_dates_query = """
         SELECT "DATE" FROM STREAMLIT_APPS.PUBLIC.REP_LEAVE_PTO
-        WHERE NAME = %s AND "DATE" IN ({}).format(','.join(['%s'] * len(changed_dates)))
+        WHERE NAME = %s AND "DATE" IN ({})
+        """.format(','.join(['%s'] * len(changed_dates)))
+
         cur.execute(check_existing_dates_query, [selected_name] + changed_dates)
         duplicate_dates = [row[0] for row in cur.fetchall()]
 
