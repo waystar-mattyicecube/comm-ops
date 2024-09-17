@@ -139,6 +139,7 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
     # Check for weekend dates
     if check_for_weekend_dates(edited_pto_df):
         st.session_state['weekend_error'] = True
+        st.session_state['error_time'] = datetime.now()  # Set the current time for error display
         return False  # Prevent saving changes if weekend dates are found
 
     if not changed_rows_df.empty:
@@ -154,6 +155,7 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
 
         if duplicate_dates:
             st.session_state['duplicate_error'] = duplicate_dates
+            st.session_state['error_time'] = datetime.now()  # Set the current time for error display
             return False  # Prevent further saving if duplicates exist
 
     # Detect deleted rows
@@ -288,12 +290,16 @@ with col1:
     # Display error message if applicable
     if 'weekend_error' in st.session_state:
         st.sidebar.error("PTO cannot occur on weekends. Please revise your entry.")
-        st.session_state.pop('weekend_error', None)  # Clear the weekend error message
+        # Clear the weekend error after 5 seconds
+        if datetime.now() - st.session_state['error_time'] > timedelta(seconds=5):
+            st.session_state.pop('weekend_error', None)
 
     if 'duplicate_error' in st.session_state:
         duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in st.session_state['duplicate_error']])
         st.sidebar.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
-        st.session_state.pop('duplicate_error', None)  # Clear the duplicate error message
+        # Clear the duplicate error after 5 seconds
+        if datetime.now() - st.session_state['error_time'] > timedelta(seconds=5):
+            st.session_state.pop('duplicate_error', None)
 
     if selected_name != '':
         if 'pto_data' not in st.session_state or st.session_state['pto_data'] is None:
