@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from streamlit_date_picker import date_range_picker, PickerType
 import snowflake.connector
 import pandas as pd
-import time
 
 # Logo URL
 logo_url = "https://companieslogo.com/img/orig/WAY-3301bb15.png?t=1717743657"
@@ -269,8 +268,6 @@ with col1:
                 if existing_dates:
                     existing_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in existing_dates])
                     main_error_message.error(f"PTO already exists for {selected_name} on: {existing_dates_str}.")
-                    time.sleep(5)
-                    main_error_message.empty()  # Clear the error message
                 else:
                     current_date = start_date
                     hours_worked_text = "Full Day" if day_type == 'Full Day' else "Half Day"
@@ -285,22 +282,18 @@ with col1:
                     conn.commit()
 
                     main_success_message.success(f"Time off submitted for {selected_name} from {formatted_start_date} to {formatted_end_date}.")
-                    time.sleep(5)
-                    main_success_message.empty()  # Clear the success message
 
                     st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
 
     # Display error message if applicable
     if 'weekend_error' in st.session_state:
         st.sidebar.error("PTO cannot occur on weekends. Please revise your entry.")
-        time.sleep(5)
-        st.sidebar.empty()  # Clear the weekend error message
+        st.session_state.pop('weekend_error', None)  # Clear the weekend error message
 
     if 'duplicate_error' in st.session_state:
         duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in st.session_state['duplicate_error']])
         st.sidebar.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
-        time.sleep(5)
-        st.sidebar.empty()  # Clear the duplicate error message
+        st.session_state.pop('duplicate_error', None)  # Clear the duplicate error message
 
     if selected_name != '':
         if 'pto_data' not in st.session_state or st.session_state['pto_data'] is None:
