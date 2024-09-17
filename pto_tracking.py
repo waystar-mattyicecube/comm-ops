@@ -139,9 +139,7 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
 
     # Check for weekend dates
     if check_for_weekend_dates(edited_pto_df):
-        error_message = st.sidebar.error("PTO cannot occur on weekends. Please revise your entry.")
-        time.sleep(5)
-        st.sidebar.empty()  # Clear the error message
+        st.session_state['weekend_error'] = True
         return False  # Prevent saving changes if weekend dates are found
 
     if not changed_rows_df.empty:
@@ -156,10 +154,7 @@ def save_data_editor_changes(edited_pto_df, original_pto_df, selected_name, conn
         duplicate_dates = [row[0] for row in cur.fetchall()]
 
         if duplicate_dates:
-            duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in duplicate_dates])
-            st.sidebar.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
-            time.sleep(5)
-            st.sidebar.empty()  # Clear the error message
+            st.session_state['duplicate_error'] = duplicate_dates
             return False  # Prevent further saving if duplicates exist
 
     # Detect deleted rows
@@ -216,6 +211,8 @@ def reset_session_state_on_rep_change(selected_name):
     if 'last_selected_rep' not in st.session_state or st.session_state['last_selected_rep'] != selected_name:
         st.session_state['last_selected_rep'] = selected_name
         st.session_state['pto_data'] = None  # Reset to force refresh
+        st.session_state.pop('weekend_error', None)
+        st.session_state.pop('duplicate_error', None)
 
 # Establish connection to Snowflake and fetch names
 conn = get_snowflake_connection()
@@ -292,6 +289,18 @@ with col1:
                     main_success_message.empty()  # Clear the success message
 
                     st.session_state['pto_data'] = fetch_pto_data(conn, selected_name)
+
+    # Display error message if applicable
+    if 'weekend_error' in st.session_state:
+        st.sidebar.error("PTO cannot occur on weekends. Please revise your entry.")
+        time.sleep(5)
+        st.sidebar.empty()  # Clear the weekend error message
+
+    if 'duplicate_error' in st.session_state:
+        duplicate_dates_str = ', '.join([date.strftime('%b %d, %Y') for date in st.session_state['duplicate_error']])
+        st.sidebar.error(f"PTO already exists for {selected_name} on: {duplicate_dates_str}.")
+        time.sleep(5)
+        st.sidebar.empty()  # Clear the duplicate error message
 
     if selected_name != '':
         if 'pto_data' not in st.session_state or st.session_state['pto_data'] is None:
